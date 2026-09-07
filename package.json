@@ -1,0 +1,23 @@
+{
+  "name": "argentinian-buhurt-api",
+  "version": "1.0.0",
+  "description": "API REST para la aplicacion de Buhurt Argentino",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed": "node src/database/seed.js",
+    "seed:demo": "node src/database/seed-demo.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
