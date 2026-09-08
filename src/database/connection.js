@@ -1,5 +1,4 @@
 const { createClient } = require('@libsql/client');
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -64,6 +63,7 @@ if (useTurso) {
   };
 } else {
   // Fallback SQLite local para desarrollo offline
+  const sqlite3 = require('sqlite3').verbose();
   const dbPath = process.env.DB_PATH || './src/database/buhurt.db';
   const db = new sqlite3.Database(path.resolve(__dirname, '../../', dbPath));
 

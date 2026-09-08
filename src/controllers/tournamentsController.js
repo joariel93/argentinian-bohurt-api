@@ -111,7 +111,7 @@ const tournamentsController = {
 
   checkExists: async (req, res) => {
     const { organizerId } = req.params;
-    const row = await db.get(`SELECT id_torneo FROM torneo WHERE id_torneo = ?`, [organizerId]);
+    const row = await db.get(`SELECT id_torneo FROM torneo WHERE id_organizador = ?`, [organizerId]);
     res.json(!!row);
   },
 
