@@ -73,7 +73,7 @@ async function getTeamsByClub(idClub) {
 const clubsController = {
   getAll: async (req, res) => {
     const clubs = await db.all(
-      `SELECT id_club AS id, nombre, pais AS country, logo FROM club ORDER BY nombre`
+      `SELECT id_club AS id, nombre, pais AS country, logo, fundacion, info FROM club ORDER BY nombre`
     );
     const result = await Promise.all(
       clubs.map(async (c) => ({
