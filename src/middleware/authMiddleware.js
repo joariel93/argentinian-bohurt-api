@@ -9,6 +9,7 @@ const authMiddleware = (req, res, next) => {
   }
 
   const token = req.cookies?.token;
+  console.log('AuthMiddleware cookies:', req.cookies, 'origin:', req.headers.origin, 'x-forwarded-proto:', req.headers['x-forwarded-proto']);
 
   if (!token) {
     return res.status(401).json({ error: 'No autenticado' });

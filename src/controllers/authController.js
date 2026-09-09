@@ -5,7 +5,7 @@ const db = require('../database/connection');
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
-const getCookieOptions = () => {
+const getCookieOptions = (req) => {
   const maxAgeMatch = JWT_EXPIRES_IN.match(/^(\d+)([hdm])$/);
   let maxAgeMs = 24 * 60 * 60 * 1000; // default 24h
 
@@ -16,10 +16,14 @@ const getCookieOptions = () => {
     maxAgeMs = value * multipliers[unit];
   }
 
+  const origin = req?.headers?.origin || '';
+  const isHttps = origin.startsWith('https://') || req?.headers?.['x-forwarded-proto'] === 'https';
+
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: isHttps,
+    sameSite: isHttps ? 'none' : 'lax',
+    path: '/',
     maxAge: maxAgeMs,
   };
 };
@@ -63,7 +67,9 @@ const authController = {
         { expiresIn: JWT_EXPIRES_IN }
       );
 
-      res.cookie('token', token, getCookieOptions());
+      const cookieOptions = getCookieOptions(req);
+      console.log('Set-Cookie options:', cookieOptions, 'x-forwarded-proto:', req.headers['x-forwarded-proto'], 'origin:', req.headers.origin);
+      res.cookie('token', token, cookieOptions);
 
       res.json({
         id: user.id_usuario,
@@ -80,11 +86,14 @@ const authController = {
     }
   },
 
-  logout: (_req, res) => {
+  logout: (req, res) => {
+    const origin = req?.headers?.origin || '';
+    const isHttps = origin.startsWith('https://') || req?.headers?.['x-forwarded-proto'] === 'https';
     res.clearCookie('token', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: isHttps,
+      sameSite: isHttps ? 'none' : 'lax',
+      path: '/',
     });
     res.json({ message: 'Sesión cerrada exitosamente' });
   },
