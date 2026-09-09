@@ -191,6 +191,8 @@ const usersController = {
         await trx.run(`DELETE FROM luchador WHERE id_usuario = ?`, [id]);
         await trx.run(`DELETE FROM torneo_equipo_peleador WHERE id_usuario = ?`, [id]);
         await trx.run(`DELETE FROM equipo_peleador WHERE id_usuario = ?`, [id]);
+        await trx.run(`DELETE FROM torneo_luchador WHERE id_usuario = ?`, [id]);
+        await trx.run(`DELETE FROM round_peleador WHERE id_usuario = ?`, [id]);
         await trx.run(`DELETE FROM usuario WHERE id_usuario = ?`, [id]);
       });
 
