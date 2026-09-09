@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs');
 const db = require('../database/connection');
 const { v4: uuidv4 } = require('uuid');
 
@@ -6,10 +7,10 @@ const TIPOS_HABILITADOS = [1, 2, 5];
 const usuariosController = {
   login: async (req, res) => {
     try {
-      const { email, password, proveedor } = req.body;
+      const { email, password } = req.body;
 
-      if (!email) {
-        return res.status(400).json({ error: 'El campo email es requerido' });
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email y password son requeridos' });
       }
 
       const user = await db.get(
@@ -19,17 +20,16 @@ const usuariosController = {
       );
 
       if (!user) {
-        return res.status(404).json({ error: 'Usuario no encontrado' });
+        return res.status(401).json({ error: 'Credenciales inválidas' });
       }
 
       if (!TIPOS_HABILITADOS.includes(user.id_tipo_usuario)) {
         return res.status(403).json({ error: 'Usuario no habilitado para esta aplicación' });
       }
 
-      if (proveedor !== 'google') {
-        if (!password || user.password !== password) {
-          return res.status(401).json({ error: 'Credenciales inválidas' });
-        }
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Credenciales inválidas' });
       }
 
       res.json({

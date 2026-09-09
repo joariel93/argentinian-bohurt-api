@@ -1,6 +1,40 @@
 const db = require('../database/connection');
 const { v4: uuidv4 } = require('uuid');
 
+async function deleteTeamAndDependencies(trx, idEquipo) {
+  // 1. Eliminar combates donde el equipo participa (A, B o ganador)
+  const combates = await trx.all(
+    `SELECT id_torneo, id_combate FROM combate WHERE id_equipo_a = ? OR id_equipo_b = ? OR id_equipo_ganador = ?`,
+    [idEquipo, idEquipo, idEquipo]
+  );
+
+  for (const combate of combates) {
+    await trx.run(
+      `DELETE FROM round_peleador WHERE id_torneo = ? AND id_combate = ?`,
+      [combate.id_torneo, combate.id_combate]
+    );
+    await trx.run(
+      `DELETE FROM round_combate WHERE id_torneo = ? AND id_combate = ?`,
+      [combate.id_torneo, combate.id_combate]
+    );
+    await trx.run(
+      `DELETE FROM combate WHERE id_torneo = ? AND id_combate = ?`,
+      [combate.id_torneo, combate.id_combate]
+    );
+  }
+
+  // 2. Eliminar dependencias directas del equipo
+  await trx.run(`DELETE FROM torneo_equipo_peleador WHERE id_equipo = ?`, [idEquipo]);
+  await trx.run(`DELETE FROM torneo_equipo WHERE id_equipo = ?`, [idEquipo]);
+  await trx.run(`DELETE FROM equipos_por_grupo WHERE id_equipo = ?`, [idEquipo]);
+  await trx.run(`DELETE FROM equipo_peleador WHERE id_equipo = ?`, [idEquipo]);
+  await trx.run(`DELETE FROM equipo_redes_sociales WHERE id_equipo = ?`, [idEquipo]);
+  await trx.run(`DELETE FROM club_equipos WHERE id_equipo = ?`, [idEquipo]);
+
+  // 3. Eliminar el equipo
+  await trx.run(`DELETE FROM equipo WHERE id_equipo = ?`, [idEquipo]);
+}
+
 function mapIconClass(icono) {
   const map = {
     'fa-facebook-f': 'pi pi-facebook',
@@ -26,6 +60,22 @@ async function getRedesSocialesEquipo(idEquipo) {
 }
 
 const teamsController = {
+  getAll: async (req, res) => {
+    const rows = await db.all(
+      `SELECT e.id_equipo AS id, e.nombre, e.logo, e.fecha_creacion AS fechaCreacion,
+              g.nombre AS genero, m.nombre AS modalidad, cat.nombre AS categoria,
+              c.id_club AS clubId, c.nombre AS clubNombre
+       FROM equipo e
+       LEFT JOIN genero g ON e.id_genero = g.id_genero
+       LEFT JOIN categoria cat ON e.id_categoria = cat.id_categoria AND e.id_modalidad = cat.id_modalidad
+       LEFT JOIN modalidad m ON e.id_modalidad = m.id_modalidad
+       LEFT JOIN club_equipos ce ON e.id_equipo = ce.id_equipo
+       LEFT JOIN club c ON ce.id_club = c.id_club
+       ORDER BY e.nombre`
+    );
+    res.json(rows);
+  },
+
   getById: async (req, res) => {
     const { idTeam } = req.params;
 
@@ -226,12 +276,7 @@ const teamsController = {
     if (!existing) return res.status(404).json({ error: 'Equipo no encontrado' });
 
     await db.transaction(async (trx) => {
-      await trx.run(`DELETE FROM equipo_redes_sociales WHERE id_equipo = ?`, [idTeam]);
-      await trx.run(`DELETE FROM club_equipos WHERE id_equipo = ?`, [idTeam]);
-      await trx.run(`DELETE FROM equipo_peleador WHERE id_equipo = ?`, [idTeam]);
-      await trx.run(`DELETE FROM torneo_equipo WHERE id_equipo = ?`, [idTeam]);
-      await trx.run(`DELETE FROM equipos_por_grupo WHERE id_equipo = ?`, [idTeam]);
-      await trx.run(`DELETE FROM equipo WHERE id_equipo = ?`, [idTeam]);
+      await deleteTeamAndDependencies(trx, idTeam);
     });
 
     res.json({ message: 'Equipo eliminado exitosamente' });
@@ -264,4 +309,4 @@ const teamsController = {
   },
 };
 
-module.exports = teamsController;
+module.exports = { ...teamsController, deleteTeamAndDependencies };

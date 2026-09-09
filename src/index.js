@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 
 const lookupsRoutes = require('./routes/lookups');
 const clubsRoutes = require('./routes/clubs');
@@ -9,6 +10,9 @@ const tournamentsRoutes = require('./routes/tournaments');
 const organizersRoutes = require('./routes/organizers');
 const newsRoutes = require('./routes/news');
 const marshallsRoutes = require('./routes/marshalls');
+const authRoutes = require('./routes/auth');
+const usersRoutes = require('./routes/users');
+const uploadRoutes = require('./routes/upload');
 
 const initSchema = require('./database/schema');
 
@@ -37,6 +41,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 app.use('/api', lookupsRoutes);
 app.use('/api', clubsRoutes);
@@ -45,6 +50,9 @@ app.use('/api', tournamentsRoutes);
 app.use('/api', organizersRoutes);
 app.use('/api', newsRoutes);
 app.use('/api', marshallsRoutes);
+app.use('/api', authRoutes);
+app.use('/api', usersRoutes);
+app.use('/api', uploadRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

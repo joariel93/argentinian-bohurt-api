@@ -1,5 +1,6 @@
 const db = require('./connection');
 const initSchema = require('./schema');
+const bcrypt = require('bcryptjs');
 
 const KEY = 'buhurt-marshall-dni';
 function encryptDni(dni) {
@@ -11,6 +12,9 @@ function encryptDni(dni) {
 const seedDemo = async () => {
   await initSchema();
 
+  const hashedPass = bcrypt.hashSync('pass', 10);
+  const hashedAdmin = bcrypt.hashSync('admin', 10);
+
   // Marshall (tipo 5) y Organizador (tipo 2) para login
   await db.run(
     `INSERT OR REPLACE INTO usuario (id_usuario, username, password, nombre, apellido, email, id_tipo_usuario)
@@ -20,7 +24,14 @@ const seedDemo = async () => {
   await db.run(
     `INSERT OR REPLACE INTO usuario (id_usuario, username, password, nombre, apellido, email, id_tipo_usuario)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ['user-org-1', 'org@test.com', 'pass', 'Org', 'Organizador', 'org@test.com', 2]
+    ['user-org-1', 'org@test.com', hashedPass, 'Org', 'Organizador', 'org@test.com', 2]
+  );
+
+  // Administrador (tipo 1) para panel de administración
+  await db.run(
+    `INSERT OR REPLACE INTO usuario (id_usuario, username, password, nombre, apellido, email, id_tipo_usuario)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['user-admin-1', 'admin@test.com', hashedAdmin, 'Admin', 'Principal', 'admin@test.com', 1]
   );
 
   // Luchadores (tipo 4), username = DNI encriptado

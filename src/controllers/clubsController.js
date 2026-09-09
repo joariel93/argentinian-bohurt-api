@@ -1,5 +1,6 @@
 const db = require('../database/connection');
 const { v4: uuidv4 } = require('uuid');
+const { deleteTeamAndDependencies } = require('../controllers/teamsController');
 
 function mapIconClass(icono) {
   const map = {
@@ -216,8 +217,19 @@ const clubsController = {
     if (!existing) return res.status(404).json({ error: 'Club no encontrado' });
 
     await db.transaction(async (trx) => {
+      // 1. Eliminar redes sociales del club
       await trx.run(`DELETE FROM club_redes_sociales WHERE id_club = ?`, [idClub]);
-      await trx.run(`DELETE FROM club_equipos WHERE id_club = ?`, [idClub]);
+
+      // 2. Obtener equipos del club y eliminarlos con todas sus dependencias
+      const equipos = await trx.all(
+        `SELECT id_equipo FROM club_equipos WHERE id_club = ?`,
+        [idClub]
+      );
+      for (const equipo of equipos) {
+        await deleteTeamAndDependencies(trx, equipo.id_equipo);
+      }
+
+      // 3. Eliminar el club
       await trx.run(`DELETE FROM club WHERE id_club = ?`, [idClub]);
     });
 
