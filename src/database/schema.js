@@ -116,6 +116,7 @@ const createTables = async () => {
     id_modalidad INTEGER NOT NULL DEFAULT 1,
     id_tipo_torneo INTEGER,
     imagen TEXT,
+    link_transmision TEXT,
     password TEXT,
     FOREIGN KEY (id_organizador) REFERENCES usuario(id_usuario),
     FOREIGN KEY (id_reglamento) REFERENCES reglamento(id_reglamento),
@@ -124,6 +125,11 @@ const createTables = async () => {
     FOREIGN KEY (id_modalidad) REFERENCES modalidad(id_modalidad),
     FOREIGN KEY (id_tipo_torneo) REFERENCES tipo_torneo(id_tipo_torneo)
   )`);
+
+  const torneoCols = await db.all(`PRAGMA table_info(torneo)`);
+  if (!torneoCols.some((c) => c.name === 'link_transmision')) {
+    await db.run(`ALTER TABLE torneo ADD COLUMN link_transmision TEXT`);
+  }
 
   await db.run(`CREATE TABLE IF NOT EXISTS organizacion_torneo (
     id_torneo TEXT PRIMARY KEY,

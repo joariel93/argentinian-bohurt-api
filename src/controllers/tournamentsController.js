@@ -30,7 +30,7 @@ const tournamentsController = {
     const rows = await db.all(
       `SELECT t.id_torneo AS id, t.nombre, t.fecha_torneo AS fechaTorneo,
               t.fecha_cierre_inscripcion AS fechaCierreInscripcion,
-              t.localizacion, t.imagen,
+              t.localizacion, t.imagen, t.link_transmision AS linkTransmision,
               m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
               (SELECT COUNT(*) FROM torneo_equipo te WHERE te.id_torneo = t.id_torneo) AS equiposInscritos,
               CASE
@@ -51,7 +51,7 @@ const tournamentsController = {
     const { tournamentId } = req.params;
     const t = await db.get(
       `SELECT t.id_torneo, t.nombre, t.fecha_torneo AS fechaTorneo, t.fecha_cierre_inscripcion AS fechaCierreInscripcion,
-              t.localizacion, t.imagen, t.id_tipo_torneo AS idTipoTorneo,
+              t.localizacion, t.imagen, t.link_transmision AS linkTransmision, t.id_tipo_torneo AS idTipoTorneo,
               m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
               tt.nombre AS tipoTorneo
        FROM torneo t
@@ -127,7 +127,7 @@ const tournamentsController = {
   submit: async (req, res) => {
     const { nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
       idOrganizador, idReglamento, idGenero, idCategoria, idModalidad,
-      idTipoTorneo, imagen, password } = req.body;
+      idTipoTorneo, imagen, linkTransmision, password } = req.body;
 
     if (!nombre || !localizacion || !fechaTorneo || !fechaCierreInscripcion) {
       return res.status(400).json({ error: 'nombre, localizacion, fechaTorneo y fechaCierreInscripcion son requeridos' });
@@ -137,11 +137,11 @@ const tournamentsController = {
     await db.run(
       `INSERT INTO torneo (id_torneo, nombre, localizacion, fecha_torneo, fecha_cierre_inscripcion,
                            id_organizador, id_reglamento, id_genero, id_categoria, id_modalidad,
-                           id_tipo_torneo, imagen, password)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                           id_tipo_torneo, imagen, link_transmision, password)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [idTorneo, nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
         idOrganizador || null, idReglamento || 1, idGenero || 1, idCategoria || 1, idModalidad || 1,
-        idTipoTorneo || null, imagen || null, password || null]
+        idTipoTorneo || null, imagen || null, linkTransmision || null, password || null]
     );
 
     res.status(201).json({ id: idTorneo, message: 'Torneo creado exitosamente' });
@@ -153,15 +153,27 @@ const tournamentsController = {
     if (!existing) return res.status(404).json({ error: 'Torneo no encontrado' });
 
     const updates = req.body;
+    const fieldMap = {
+      fechaTorneo: 'fecha_torneo',
+      fechaCierreInscripcion: 'fecha_cierre_inscripcion',
+      idOrganizador: 'id_organizador',
+      idReglamento: 'id_reglamento',
+      idGenero: 'id_genero',
+      idCategoria: 'id_categoria',
+      idModalidad: 'id_modalidad',
+      idTipoTorneo: 'id_tipo_torneo',
+      linkTransmision: 'link_transmision',
+    };
     const allowedFields = ['nombre', 'localizacion', 'fecha_torneo', 'fecha_cierre_inscripcion',
       'id_organizador', 'id_reglamento', 'id_genero', 'id_categoria', 'id_modalidad',
-      'id_tipo_torneo', 'imagen', 'password'];
+      'id_tipo_torneo', 'imagen', 'link_transmision', 'password'];
     const fields = [];
     const values = [];
 
     for (const [key, value] of Object.entries(updates)) {
-      if (allowedFields.includes(key) && value !== undefined) {
-        fields.push(`${key} = ?`);
+      const dbField = fieldMap[key] || key;
+      if (allowedFields.includes(dbField) && value !== undefined) {
+        fields.push(`${dbField} = ?`);
         values.push(value);
       }
     }
@@ -363,6 +375,28 @@ const tournamentsController = {
       console.error(error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
+  },
+
+  updateCombateLink: async (req, res) => {
+    const { idTorneo, idCombate } = req.params;
+    const { link } = req.body;
+
+    if (link === undefined) {
+      return res.status(400).json({ error: 'El campo link es requerido' });
+    }
+
+    const combate = await db.get(
+      `SELECT id_combate FROM combate WHERE id_torneo = ? AND id_combate = ?`,
+      [idTorneo, idCombate]
+    );
+    if (!combate) return res.status(404).json({ error: 'Combate no encontrado' });
+
+    await db.run(
+      `UPDATE combate SET link = ? WHERE id_torneo = ? AND id_combate = ?`,
+      [link || null, idTorneo, idCombate]
+    );
+
+    res.json({ message: 'Link del combate actualizado' });
   },
 
   removeEquipo: async (req, res) => {

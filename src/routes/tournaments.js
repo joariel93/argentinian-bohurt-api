@@ -19,7 +19,8 @@ router.post('/v1/organizers/:organizerId/tournaments', authMiddleware, roleMiddl
   tournamentsController.submit(req, res);
 });
 router.post('/v1/torneo/:idTorneo/equipos', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addEquipo);
-router.post('/v1/torneo/:idTorneo/combates', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addCombates)
+router.post('/v1/torneo/:idTorneo/combates', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addCombates);
+router.put('/v1/torneo/:idTorneo/combate/:idCombate/link', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.updateCombateLink);
 router.put('/v1/tournaments/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.update);
 router.delete('/v1/tournaments/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.delete);
 router.delete('/v1/torneo/:idTorneo/equipos/:idEquipo', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removeEquipo);
