@@ -392,6 +392,16 @@ const createTables = async () => {
     cuerpo TEXT
   )`);
 
+  await db.run(`CREATE TABLE IF NOT EXISTS refresh_token (
+    id_refresh_token TEXT PRIMARY KEY,
+    id_usuario TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    revoked_at DATETIME,
+    FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+  )`);
+
   console.log('Tablas creadas correctamente');
 };
 

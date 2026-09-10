@@ -1,5 +1,6 @@
 const db = require('../database/connection');
 const { v4: uuidv4 } = require('uuid');
+const otpService = require('../services/otpService');
 
 function mapIconClass(icono) {
   const map = {
@@ -127,13 +128,16 @@ const tournamentsController = {
   submit: async (req, res) => {
     const { nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
       idOrganizador, idReglamento, idGenero, idCategoria, idModalidad,
-      idTipoTorneo, imagen, linkTransmision, password, redesSociales } = req.body;
+      idTipoTorneo, imagen, linkTransmision, redesSociales } = req.body;
 
     if (!nombre || !localizacion || !fechaTorneo || !fechaCierreInscripcion) {
       return res.status(400).json({ error: 'nombre, localizacion, fechaTorneo y fechaCierreInscripcion son requeridos' });
     }
 
+    const otp = otpService.generate();
+    const otpHash = otpService.hash(otp);
     const idTorneo = uuidv4();
+
     await db.transaction(async (trx) => {
       await trx.run(
         `INSERT INTO torneo (id_torneo, nombre, localizacion, fecha_torneo, fecha_cierre_inscripcion,
@@ -142,7 +146,7 @@ const tournamentsController = {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [idTorneo, nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
           idOrganizador || null, idReglamento || 1, idGenero || 1, idCategoria || 1, idModalidad || 1,
-          idTipoTorneo || null, imagen || null, linkTransmision || null, password || null]
+          idTipoTorneo || null, imagen || null, linkTransmision || null, otpHash]
       );
 
       if (Array.isArray(redesSociales)) {
@@ -155,7 +159,7 @@ const tournamentsController = {
       }
     });
 
-    res.status(201).json({ id: idTorneo, message: 'Torneo creado exitosamente' });
+    res.status(201).json({ id: idTorneo, password: otp, message: 'Torneo creado exitosamente' });
   },
 
   update: async (req, res) => {
@@ -185,8 +189,13 @@ const tournamentsController = {
     for (const [key, value] of Object.entries(updates)) {
       const dbField = fieldMap[key] || key;
       if (allowedFields.includes(dbField) && value !== undefined) {
-        fields.push(`${dbField} = ?`);
-        values.push(value);
+        if (dbField === 'password') {
+          fields.push(`${dbField} = ?`);
+          values.push(otpService.hash(value));
+        } else {
+          fields.push(`${dbField} = ?`);
+          values.push(value);
+        }
       }
     }
 
@@ -206,6 +215,17 @@ const tournamentsController = {
     }
 
     res.json({ message: 'Torneo actualizado exitosamente' });
+  },
+
+  regenerateOtp: async (req, res) => {
+    const { id } = req.params;
+    const existing = await db.get(`SELECT id_torneo FROM torneo WHERE id_torneo = ?`, [id]);
+    if (!existing) return res.status(404).json({ error: 'Torneo no encontrado' });
+
+    const otp = otpService.generate();
+    const otpHash = otpService.hash(otp);
+    await db.run(`UPDATE torneo SET password = ? WHERE id_torneo = ?`, [otpHash, id]);
+    res.json({ id, password: otp });
   },
 
   delete: async (req, res) => {

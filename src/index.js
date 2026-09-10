@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const lookupsRoutes = require('./routes/lookups');
 const clubsRoutes = require('./routes/clubs');
@@ -16,6 +18,8 @@ const uploadRoutes = require('./routes/upload');
 
 const initSchema = require('./database/schema');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -29,6 +33,11 @@ const allowedOrigins = [
   'https://marshalls-bohurt-app.vercel.app',
 ];
 
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: isProduction ? undefined : false,
+}));
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -40,8 +49,39 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Probá más tarde.' },
+  skipSuccessfulRequests: false,
+});
+
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos de refresh. Probá más tarde.' },
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas peticiones. Probá más tarde.' },
+});
+
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/refresh', refreshLimiter);
+app.use('/api', apiLimiter);
 
 app.use('/api', lookupsRoutes);
 app.use('/api', clubsRoutes);
@@ -64,12 +104,14 @@ app.use((req, res) => {
 
 app.use((err, req, res, _next) => {
   console.error(err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Error interno del servidor',
-  });
+  const status = err.status || 500;
+  const message = isProduction
+    ? 'Error interno del servidor'
+    : err.message || 'Error interno del servidor';
+  res.status(status).json({ error: message });
 });
 
-initSchema() // cambiar a initSchema
+initSchema()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`API Buhurt Argentina corriendo en http://localhost:${PORT}`);

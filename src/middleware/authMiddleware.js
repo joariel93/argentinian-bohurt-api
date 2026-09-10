@@ -8,8 +8,7 @@ const authMiddleware = (req, res, next) => {
     return res.status(500).json({ error: 'Configuración de seguridad incompleta' });
   }
 
-  const token = req.cookies?.token;
-  console.log('AuthMiddleware cookies:', req.cookies, 'origin:', req.headers.origin, 'x-forwarded-proto:', req.headers['x-forwarded-proto']);
+  const token = req.cookies?.access_token;
 
   if (!token) {
     return res.status(401).json({ error: 'No autenticado' });
