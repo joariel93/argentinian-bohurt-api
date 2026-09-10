@@ -127,22 +127,33 @@ const tournamentsController = {
   submit: async (req, res) => {
     const { nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
       idOrganizador, idReglamento, idGenero, idCategoria, idModalidad,
-      idTipoTorneo, imagen, linkTransmision, password } = req.body;
+      idTipoTorneo, imagen, linkTransmision, password, redesSociales } = req.body;
 
     if (!nombre || !localizacion || !fechaTorneo || !fechaCierreInscripcion) {
       return res.status(400).json({ error: 'nombre, localizacion, fechaTorneo y fechaCierreInscripcion son requeridos' });
     }
 
     const idTorneo = uuidv4();
-    await db.run(
-      `INSERT INTO torneo (id_torneo, nombre, localizacion, fecha_torneo, fecha_cierre_inscripcion,
-                           id_organizador, id_reglamento, id_genero, id_categoria, id_modalidad,
-                           id_tipo_torneo, imagen, link_transmision, password)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [idTorneo, nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
-        idOrganizador || null, idReglamento || 1, idGenero || 1, idCategoria || 1, idModalidad || 1,
-        idTipoTorneo || null, imagen || null, linkTransmision || null, password || null]
-    );
+    await db.transaction(async (trx) => {
+      await trx.run(
+        `INSERT INTO torneo (id_torneo, nombre, localizacion, fecha_torneo, fecha_cierre_inscripcion,
+                             id_organizador, id_reglamento, id_genero, id_categoria, id_modalidad,
+                             id_tipo_torneo, imagen, link_transmision, password)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [idTorneo, nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
+          idOrganizador || null, idReglamento || 1, idGenero || 1, idCategoria || 1, idModalidad || 1,
+          idTipoTorneo || null, imagen || null, linkTransmision || null, password || null]
+      );
+
+      if (Array.isArray(redesSociales)) {
+        for (const sn of redesSociales) {
+          await trx.run(
+            `INSERT OR REPLACE INTO torneo_redes_sociales (id_torneo, id_red_social, link) VALUES (?, ?, ?)`,
+            [idTorneo, sn.idRedSocial, sn.link || null]
+          );
+        }
+      }
+    });
 
     res.status(201).json({ id: idTorneo, message: 'Torneo creado exitosamente' });
   },
@@ -153,6 +164,7 @@ const tournamentsController = {
     if (!existing) return res.status(404).json({ error: 'Torneo no encontrado' });
 
     const updates = req.body;
+    const { redesSociales } = updates;
     const fieldMap = {
       fechaTorneo: 'fecha_torneo',
       fechaCierreInscripcion: 'fecha_cierre_inscripcion',
@@ -181,6 +193,16 @@ const tournamentsController = {
     if (fields.length > 0) {
       values.push(id);
       await db.run(`UPDATE torneo SET ${fields.join(', ')} WHERE id_torneo = ?`, values);
+    }
+
+    if (Array.isArray(redesSociales)) {
+      await db.run(`DELETE FROM torneo_redes_sociales WHERE id_torneo = ?`, [id]);
+      for (const sn of redesSociales) {
+        await db.run(
+          `INSERT OR REPLACE INTO torneo_redes_sociales (id_torneo, id_red_social, link) VALUES (?, ?, ?)`,
+          [id, sn.idRedSocial, sn.link || null]
+        );
+      }
     }
 
     res.json({ message: 'Torneo actualizado exitosamente' });
@@ -341,7 +363,7 @@ const tournamentsController = {
       await db.transaction(async (trx) => {
         for (let i = 0; i < equipos.length; i++) {
           const equipo = equipos[i];
-          await db.run(
+          await trx.run(
             `INSERT OR REPLACE INTO torneo_equipo (id_equipo, id_torneo, posicion, cantidad_combates, cantidad_victorias, cantidad_derrotas, cantidad_rounds_ganados, cantidad_rounds_perdidos)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [equipo.id_equipo, idTorneo, equipo.posicion, equipo.cantidadCombates, equipo.cantidadVictorias, equipo.cantidadDerrotas, equipo.cantidadRoundGanados, equipo.cantidadRoundPerdidos || null]
@@ -355,9 +377,9 @@ const tournamentsController = {
           const roundsPerdedor = combate.rounds.length - roundsGanador;
           await trx.run(
             `INSERT INTO combate (id_torneo, id_combate, orden, cantidad_round_ganados_ganador, cantidad_round_ganados_perdedor,
-              id_equipo_a, id_equipo_b, id_equipo_ganador)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [idTorneo, idCombate, i + 1, roundsGanador, roundsPerdedor,
-            combate.idEquipo1, combate.idEquipo2, combate.idGanadorCombate]
+              id_equipo_a, id_equipo_b, id_equipo_ganador, link)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [idTorneo, idCombate, i + 1, roundsGanador, roundsPerdedor,
+            combate.idEquipo1, combate.idEquipo2, combate.idGanadorCombate, combate.link || null]
           );
           for (let j = 0; j < combate.rounds.length; j++) {
             const round = combate.rounds[j];

@@ -73,7 +73,13 @@ const teamsController = {
        LEFT JOIN club c ON ce.id_club = c.id_club
        ORDER BY e.nombre`
     );
-    res.json(rows);
+    const result = await Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        redesSociales: await getRedesSocialesEquipo(r.id),
+      }))
+    );
+    res.json(result);
   },
 
   getById: async (req, res) => {
