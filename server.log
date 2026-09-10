@@ -410,3 +410,7 @@ Emitted 'error' event on Server instance at:
 
 Node.js v18.17.0
 [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node src/index.js`[39m
+Tablas creadas correctamente
+API Buhurt Argentina corriendo en http://localhost:3001

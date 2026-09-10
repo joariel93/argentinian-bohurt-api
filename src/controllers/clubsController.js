@@ -121,7 +121,7 @@ const clubsController = {
   },
 
   getSimplify: async (req, res) => {
-    const rows = await db.all(`SELECT id_club AS id, nombre FROM club ORDER BY nombre`);
+    const rows = await db.all(`SELECT id_club AS id, nombre, logo FROM club ORDER BY nombre`);
     res.json(rows);
   },
 
