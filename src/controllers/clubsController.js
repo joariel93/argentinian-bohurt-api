@@ -73,7 +73,7 @@ async function getTeamsByClub(idClub) {
 const clubsController = {
   getAll: async (req, res) => {
     const clubs = await db.all(
-      `SELECT id_club AS id, nombre, pais AS country, logo, fundacion, info FROM club ORDER BY nombre`
+      `SELECT id_club AS id, nombre, pais AS country, ciudad, logo, fundacion, info FROM club ORDER BY nombre`
     );
     const result = await Promise.all(
       clubs.map(async (c) => ({
@@ -87,7 +87,7 @@ const clubsController = {
   getById: async (req, res) => {
     const { idClub } = req.params;
 
-    const club = await db.get(`SELECT id_club, nombre, pais, logo, fundacion, info FROM club WHERE id_club = ?`, [idClub]);
+    const club = await db.get(`SELECT id_club, nombre, pais, ciudad, logo, fundacion, info FROM club WHERE id_club = ?`, [idClub]);
 
     if (!club) return res.status(404).json({ error: 'Club no encontrado' });
 
@@ -115,6 +115,7 @@ const clubsController = {
       foundation: club.fundacion,
       info: club.info,
       country: club.pais,
+      ciudad: club.ciudad,
       redesSociales: clubRedes,
       teams: teamsWithSN,
     });
@@ -152,14 +153,14 @@ const clubsController = {
   },
 
   create: async (req, res) => {
-    const { nombre, pais, logo, fundacion, info, redesSociales } = req.body;
+    const { nombre, pais, ciudad, logo, fundacion, info, redesSociales } = req.body;
     if (!nombre || !fundacion) return res.status(400).json({ error: 'nombre y fundacion son requeridos' });
 
     const idClub = uuidv4();
     await db.transaction(async (trx) => {
       await trx.run(
-        `INSERT INTO club (id_club, nombre, pais, logo, fundacion, info) VALUES (?, ?, ?, ?, ?, ?)`,
-        [idClub, nombre, pais || null, logo || null, fundacion, info || null]
+        `INSERT INTO club (id_club, nombre, pais, ciudad, logo, fundacion, info) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [idClub, nombre, pais || null, ciudad || null, logo || null, fundacion, info || null]
       );
 
       if (Array.isArray(redesSociales)) {
@@ -180,7 +181,7 @@ const clubsController = {
     const existing = await db.get(`SELECT id_club FROM club WHERE id_club = ?`, [idClub]);
     if (!existing) return res.status(404).json({ error: 'Club no encontrado' });
 
-    const { nombre, pais, logo, fundacion, info, redesSociales } = req.body;
+    const { nombre, pais, ciudad, logo, fundacion, info, redesSociales } = req.body;
 
     await db.transaction(async (trx) => {
       const fields = [];
@@ -188,6 +189,7 @@ const clubsController = {
 
       if (nombre !== undefined) { fields.push('nombre = ?'); values.push(nombre); }
       if (pais !== undefined) { fields.push('pais = ?'); values.push(pais); }
+      if (ciudad !== undefined) { fields.push('ciudad = ?'); values.push(ciudad); }
       if (logo !== undefined) { fields.push('logo = ?'); values.push(logo); }
       if (fundacion !== undefined) { fields.push('fundacion = ?'); values.push(fundacion); }
       if (info !== undefined) { fields.push('info = ?'); values.push(info); }

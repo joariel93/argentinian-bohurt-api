@@ -79,10 +79,15 @@ const createTables = async () => {
     id_club TEXT PRIMARY KEY,
     nombre TEXT NOT NULL,
     pais TEXT,
+    ciudad TEXT,
     logo TEXT,
     fundacion TEXT NOT NULL,
     info TEXT
   )`);
+  const clubCols = await db.all(`PRAGMA table_info(club)`);
+  if (!clubCols.some((c) => c.name === 'ciudad')) {
+    await db.run(`ALTER TABLE club ADD COLUMN ciudad TEXT`);
+  }
 
   await db.run(`CREATE TABLE IF NOT EXISTS equipo (
     id_equipo TEXT PRIMARY KEY,
