@@ -88,7 +88,7 @@ const teamsController = {
     const team = await db.get(
       `SELECT e.id_equipo, e.nombre, e.logo, e.id_genero, e.id_categoria, e.id_modalidad,
               g.nombre AS genero, cat.nombre AS categoria_nombre, m.nombre AS modalidad,
-              e.id_color1, e.id_color2, e.id_color3
+              e.id_color1, e.id_color2, e.id_color3, e.fecha_creacion AS fechaCreacion
        FROM equipo e
        LEFT JOIN genero g ON e.id_genero = g.id_genero
        LEFT JOIN categoria cat ON e.id_categoria = cat.id_categoria AND e.id_modalidad = cat.id_modalidad
@@ -110,6 +110,7 @@ const teamsController = {
       nombre: team.nombre,
       etiqueta: team.categoria_nombre,
       idModalidad: team.id_modalidad,
+      idCategoria: team.id_categoria,
       modalidad: team.modalidad,
       esMasculino: team.genero === 'Masculino' || team.id_genero === 1,
       logo: team.logo,
@@ -119,6 +120,7 @@ const teamsController = {
       color1: team.id_color1,
       color2: team.id_color2,
       color3: team.id_color3,
+      fechaCreacion: team.fechaCreacion,
       redesSociales: redes,
     });
   },

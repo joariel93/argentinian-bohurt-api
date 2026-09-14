@@ -21,6 +21,7 @@ router.post('/v1/organizers/:organizerId/tournaments', authMiddleware, roleMiddl
 router.post('/v1/torneo/:idTorneo/equipos', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addEquipo);
 router.post('/v1/torneo/:idTorneo/combates', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addCombates);
 router.put('/v1/torneo/:idTorneo/combate/:idCombate/link', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.updateCombateLink);
+router.get('/v1/tournaments/:id/admin', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.getAdmin);
 router.put('/v1/tournaments/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.update);
 router.post('/v1/tournaments/:id/regenerate-otp', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.regenerateOtp);
 router.delete('/v1/tournaments/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.delete);

@@ -26,6 +26,17 @@ async function getRedesSocialesTorneo(idTorneo) {
   return rows.map((r) => ({ platform: r.platform, url: r.url || '', iconClass: mapIconClass(r.icono) }));
 }
 
+async function getRedesSocialesTorneoAdmin(idTorneo) {
+  const rows = await db.all(
+    `SELECT rs.id_red_social AS idRedSocial, trs.link
+     FROM torneo_redes_sociales trs
+     JOIN redes_sociales rs ON trs.id_red_social = rs.id_red_social
+     WHERE trs.id_torneo = ?`,
+    [idTorneo]
+  );
+  return rows.map((r) => ({ idRedSocial: r.idRedSocial, link: r.link || '' }));
+}
+
 const tournamentsController = {
   getAll: async (req, res) => {
     const rows = await db.all(
@@ -107,6 +118,53 @@ const tournamentsController = {
       redesSociales,
       clubesInvitados: clubs,
       campeon: campeon ? { id: campeon.id, nombre: campeon.nombre, logo: campeon.logo } : null,
+    });
+  },
+
+  getAdmin: async (req, res) => {
+    const { id } = req.params;
+
+    const t = await db.get(
+      `SELECT id_torneo, nombre, fecha_torneo AS fechaTorneo, fecha_cierre_inscripcion AS fechaCierreInscripcion,
+              localizacion, imagen, link_transmision AS linkTransmision, password,
+              id_organizador AS idOrganizador, id_reglamento AS idReglamento,
+              id_genero AS idGenero, id_categoria AS idCategoria,
+              id_modalidad AS idModalidad, id_tipo_torneo AS idTipoTorneo
+       FROM torneo
+       WHERE id_torneo = ?`,
+      [id]
+    );
+    if (!t) return res.status(404).json({ error: 'Torneo no encontrado' });
+
+    const [clubs, redesSociales] = await Promise.all([
+      db.all(
+        `SELECT DISTINCT c.id_club AS id, c.nombre
+         FROM club c
+         JOIN club_equipos ce ON c.id_club = ce.id_club
+         JOIN torneo_equipo te ON ce.id_equipo = te.id_equipo
+         WHERE te.id_torneo = ?`,
+        [id]
+      ),
+      getRedesSocialesTorneoAdmin(id),
+    ]);
+
+    res.json({
+      id: t.id_torneo,
+      nombre: t.nombre,
+      fechaTorneo: t.fechaTorneo,
+      fechaCierreInscripcion: t.fechaCierreInscripcion,
+      localizacion: t.localizacion,
+      imagen: t.imagen,
+      linkTransmision: t.linkTransmision,
+      password: '',
+      idOrganizador: t.idOrganizador,
+      idReglamento: t.idReglamento,
+      idGenero: t.idGenero,
+      idCategoria: t.idCategoria,
+      idModalidad: t.idModalidad,
+      idTipoTorneo: t.idTipoTorneo,
+      redesSociales,
+      clubesInvitados: clubs,
     });
   },
 
