@@ -107,7 +107,7 @@ const teamsController = {
     );
 
     const peleadores = await db.all(
-      `SELECT DISTINCT u.id_usuario AS id, u.nombre, u.apellido, u.username
+      `SELECT DISTINCT u.id_usuario AS id, u.nombre, u.apellido
        FROM equipo_peleador ep
        JOIN usuario u ON ep.id_usuario = u.id_usuario
        WHERE ep.id_equipo = ?
@@ -135,8 +135,7 @@ const teamsController = {
       peleadores: peleadores.map((p) => ({
         id: p.id,
         nombre: p.nombre,
-        apellido: p.apellido,
-        dni: decryptDni(p.username),
+        apellido: p.apellido
       })),
     });
   },
