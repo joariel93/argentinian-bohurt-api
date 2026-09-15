@@ -7,7 +7,7 @@ const peleadoresController = {
       const { id } = req.params;
 
       const user = await db.get(
-        `SELECT id_usuario, username, nombre, apellido, email, telefono
+        `SELECT id_usuario, nombre, apellido
          FROM usuario WHERE id_usuario = ?`,
         [id]
       );
@@ -60,9 +60,6 @@ const peleadoresController = {
         id: user.id_usuario,
         nombre: user.nombre,
         apellido: user.apellido,
-        dni: decryptDni(user.username),
-        email: user.email,
-        telefono: user.telefono,
         luchador: luchador || null,
         torneos: torneos.map((t) => ({
           id: t.id,

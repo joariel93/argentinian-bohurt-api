@@ -355,7 +355,7 @@ const tournamentsController = {
     );
 
     const peleadores = await db.all(
-      `SELECT u.id_usuario AS id, u.nombre, u.apellido, u.username,
+      `SELECT u.id_usuario AS id, u.nombre, u.apellido,
               tep.numero_peleador AS numeroPeleador, tep.cantidad_amarillas AS amarillas, tep.descalificado
        FROM torneo_equipo_peleador tep
        JOIN usuario u ON tep.id_usuario = u.id_usuario
@@ -378,7 +378,6 @@ const tournamentsController = {
         id: p.id,
         nombre: p.nombre,
         apellido: p.apellido,
-        dni: decryptDni(p.username),
         numeroPeleador: p.numeroPeleador,
         amarillas: p.amarillas,
         descalificado: !!p.descalificado,
