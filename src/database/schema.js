@@ -56,15 +56,59 @@ const createTables = async () => {
 
   await db.run(`CREATE TABLE IF NOT EXISTS usuario (
     id_usuario TEXT PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL,
     password TEXT NOT NULL,
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
     email TEXT,
     telefono TEXT,
     id_tipo_usuario INTEGER NOT NULL,
+    UNIQUE(username, id_tipo_usuario),
     FOREIGN KEY (id_tipo_usuario) REFERENCES tipo_usuario(id_tipo_usuario)
   )`);
+
+  // Migración: si la tabla usuario venía con UNIQUE(username), se reconstruye
+  // para permitir el mismo DNI con distintos tipos de usuario.
+  const usuarioIndexes = await db.all(`PRAGMA index_list(usuario)`);
+  const uniqueUsernameIndex = usuarioIndexes.find(
+    (idx) => idx.unique === 1 && idx.name.startsWith('sqlite_autoindex_usuario')
+  );
+  if (uniqueUsernameIndex) {
+    const indexInfo = await db.all(`PRAGMA index_info(${uniqueUsernameIndex.name})`);
+    const indexColumns = indexInfo.map((i) => i.name);
+    if (indexColumns.length === 1 && indexColumns[0] === 'username') {
+      console.log('Migrando UNIQUE(username) a UNIQUE(username, id_tipo_usuario)...');
+      try {
+        await db.run('PRAGMA foreign_keys=OFF');
+      } catch (pragmaErr) {
+        console.warn('No se pudo desactivar foreign_keys (esperado en Turso):', pragmaErr.message);
+      }
+      await db.run(`CREATE TABLE usuario_new (
+        id_usuario TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        nombre TEXT NOT NULL,
+        apellido TEXT NOT NULL,
+        email TEXT,
+        telefono TEXT,
+        id_tipo_usuario INTEGER NOT NULL,
+        UNIQUE(username, id_tipo_usuario),
+        FOREIGN KEY (id_tipo_usuario) REFERENCES tipo_usuario(id_tipo_usuario)
+      )`);
+      await db.run(`INSERT INTO usuario_new
+        (id_usuario, username, password, nombre, apellido, email, telefono, id_tipo_usuario)
+        SELECT id_usuario, username, password, nombre, apellido, email, telefono, id_tipo_usuario
+        FROM usuario`);
+      await db.run(`DROP TABLE usuario`);
+      await db.run(`ALTER TABLE usuario_new RENAME TO usuario`);
+      try {
+        await db.run('PRAGMA foreign_keys=ON');
+      } catch (pragmaErr) {
+        console.warn('No se pudo reactivar foreign_keys (esperado en Turso):', pragmaErr.message);
+      }
+      console.log('Migración de usuario completada.');
+    }
+  }
 
   await db.run(`CREATE TABLE IF NOT EXISTS luchador (
     id_usuario TEXT PRIMARY KEY,

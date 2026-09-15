@@ -189,8 +189,8 @@ const usuariosController = {
 
       const user = await db.get(
         `SELECT id_usuario AS idUsuario, nombre, apellido, username
-         FROM usuario WHERE username = ?`,
-        [username]
+         FROM usuario WHERE username = ? AND id_tipo_usuario = ?`,
+        [username, 4]
       );
 
       if (!user) {
@@ -213,11 +213,11 @@ const usuariosController = {
       }
 
       const existing = await db.get(
-        `SELECT id_usuario FROM usuario WHERE username = ?`,
-        [username]
+        `SELECT id_usuario FROM usuario WHERE username = ? AND id_tipo_usuario = ?`,
+        [username, 4]
       );
       if (existing) {
-        return res.status(409).json({ error: 'Ya existe un usuario con ese documento' });
+        return res.status(409).json({ error: 'Ya existe un usuario con ese documento como luchador' });
       }
 
       const idUsuario = uuidv4();

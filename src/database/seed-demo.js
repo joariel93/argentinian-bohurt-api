@@ -12,8 +12,8 @@ function encryptDni(dni) {
 const seedDemo = async () => {
   await initSchema();
 
-  const hashedPass = bcrypt.hashSync('pass', 10);
-  const hashedAdmin = bcrypt.hashSync('admin', 10);
+  const hashedPass = bcrypt.hashSync('password', 10);
+  const hashedAdmin = bcrypt.hashSync('admin123', 10);
 
   // Marshall (tipo 5) y Organizador (tipo 2) para login
   await db.run(
@@ -132,6 +132,10 @@ const seedDemo = async () => {
       `INSERT OR REPLACE INTO torneo_equipo_peleador (id_torneo, id_equipo, id_usuario, numero_peleador, cantidad_amarillas, descalificado)
        VALUES (?, ?, ?, ?, 0, 0)`,
       ['torneo-001', idEquipo, idUsuario, numero]
+    );
+    await db.run(
+      `INSERT OR IGNORE INTO equipo_peleador (id_equipo, id_usuario) VALUES (?, ?)`,
+      [idEquipo, idUsuario]
     );
   }
 

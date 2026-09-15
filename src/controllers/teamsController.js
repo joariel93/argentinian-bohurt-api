@@ -1,5 +1,6 @@
 const db = require('../database/connection');
 const { v4: uuidv4 } = require('uuid');
+const { decryptDni } = require('../utils/dniCrypto');
 
 async function deleteTeamAndDependencies(trx, idEquipo) {
   // 1. Eliminar combates donde el equipo participa (A, B o ganador)
@@ -105,6 +106,15 @@ const teamsController = {
       [idTeam]
     );
 
+    const peleadores = await db.all(
+      `SELECT DISTINCT u.id_usuario AS id, u.nombre, u.apellido, u.username
+       FROM equipo_peleador ep
+       JOIN usuario u ON ep.id_usuario = u.id_usuario
+       WHERE ep.id_equipo = ?
+       ORDER BY u.apellido, u.nombre`,
+      [idTeam]
+    );
+
     res.json({
       id: team.id_equipo,
       nombre: team.nombre,
@@ -122,6 +132,12 @@ const teamsController = {
       color3: team.id_color3,
       fechaCreacion: team.fechaCreacion,
       redesSociales: redes,
+      peleadores: peleadores.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        apellido: p.apellido,
+        dni: decryptDni(p.username),
+      })),
     });
   },
 

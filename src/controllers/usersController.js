@@ -65,11 +65,11 @@ const usersController = {
       }
 
       const existingUsername = await db.get(
-        `SELECT id_usuario FROM usuario WHERE username = ?`,
-        [username]
+        `SELECT id_usuario FROM usuario WHERE username = ? AND id_tipo_usuario = ?`,
+        [username, idTipoUsuario]
       );
       if (existingUsername) {
-        return res.status(409).json({ error: 'Ya existe un usuario con ese username' });
+        return res.status(409).json({ error: 'Ya existe un usuario con ese username y tipo de usuario' });
       }
 
       if (email) {
@@ -123,13 +123,13 @@ const usersController = {
         return res.status(400).json({ error: 'El email no tiene un formato válido' });
       }
 
-      if (username) {
+      if (username && idTipoUsuario) {
         const existingUsername = await db.get(
-          `SELECT id_usuario FROM usuario WHERE username = ? AND id_usuario != ?`,
-          [username, id]
+          `SELECT id_usuario FROM usuario WHERE username = ? AND id_tipo_usuario = ? AND id_usuario != ?`,
+          [username, idTipoUsuario, id]
         );
         if (existingUsername) {
-          return res.status(409).json({ error: 'Ya existe otro usuario con ese username' });
+          return res.status(409).json({ error: 'Ya existe otro usuario con ese username y tipo de usuario' });
         }
       }
 

@@ -1,6 +1,7 @@
 const db = require('../database/connection');
 const { v4: uuidv4 } = require('uuid');
 const otpService = require('../services/otpService');
+const { decryptDni } = require('../utils/dniCrypto');
 
 function mapIconClass(icono) {
   const map = {
@@ -319,6 +320,72 @@ const tournamentsController = {
     res.json(rows);
   },
 
+  getEquipoEnTorneo: async (req, res) => {
+    const { idTorneo, idEquipo } = req.params;
+
+    const torneo = await db.get(
+      `SELECT id_torneo, nombre, fecha_torneo AS fechaTorneo, localizacion, imagen
+       FROM torneo WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
+
+    const equipo = await db.get(
+      `SELECT e.id_equipo AS id, e.nombre, e.logo, e.fecha_creacion AS fechaCreacion,
+              m.nombre AS modalidad, c.nombre AS categoria, g.nombre AS genero,
+              cl.id_club AS clubId, cl.nombre AS clubNombre, cl.logo AS clubLogo
+       FROM equipo e
+       LEFT JOIN modalidad m ON e.id_modalidad = m.id_modalidad
+       LEFT JOIN categoria c ON e.id_categoria = c.id_categoria AND e.id_modalidad = c.id_modalidad
+       LEFT JOIN genero g ON e.id_genero = g.id_genero
+       LEFT JOIN club_equipos ce ON e.id_equipo = ce.id_equipo
+       LEFT JOIN club cl ON ce.id_club = cl.id_club
+       WHERE e.id_equipo = ?`,
+      [idEquipo]
+    );
+    if (!equipo) return res.status(404).json({ error: 'Equipo no encontrado' });
+
+    const stats = await db.get(
+      `SELECT posicion, cantidad_combates AS combates, cantidad_victorias AS victorias,
+              cantidad_derrotas AS derrotas, cantidad_rounds_ganados AS roundsGanados,
+              cantidad_rounds_perdidos AS roundsPerdidos, es_cabeza_serie AS esCabezaSerie
+       FROM torneo_equipo
+       WHERE id_torneo = ? AND id_equipo = ?`,
+      [idTorneo, idEquipo]
+    );
+
+    const peleadores = await db.all(
+      `SELECT u.id_usuario AS id, u.nombre, u.apellido, u.username,
+              tep.numero_peleador AS numeroPeleador, tep.cantidad_amarillas AS amarillas, tep.descalificado
+       FROM torneo_equipo_peleador tep
+       JOIN usuario u ON tep.id_usuario = u.id_usuario
+       WHERE tep.id_torneo = ? AND tep.id_equipo = ?
+       ORDER BY tep.numero_peleador`,
+      [idTorneo, idEquipo]
+    );
+
+    res.json({
+      torneo: {
+        id: torneo.id_torneo,
+        nombre: torneo.nombre,
+        fechaTorneo: torneo.fechaTorneo,
+        localizacion: torneo.localizacion,
+        imagen: torneo.imagen,
+      },
+      equipo,
+      stats: stats || null,
+      peleadores: peleadores.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        apellido: p.apellido,
+        dni: decryptDni(p.username),
+        numeroPeleador: p.numeroPeleador,
+        amarillas: p.amarillas,
+        descalificado: !!p.descalificado,
+      })),
+    });
+  },
+
   getCombates: async (req, res) => {
     const { idTorneo } = req.params;
 
@@ -433,7 +500,7 @@ const tournamentsController = {
 
   addCombates: async (req, res) => {
     const { idTorneo } = req.params;
-    const { equipos, combates } = req.body;
+    const { equipos, combates, peleadores } = req.body;
 
     if (!idTorneo || !combates) return res.status(400).json({ error: 'Faltan parametros del endpoint' });
 
@@ -443,9 +510,30 @@ const tournamentsController = {
           const equipo = equipos[i];
           await trx.run(
             `INSERT OR REPLACE INTO torneo_equipo (id_equipo, id_torneo, posicion, cantidad_combates, cantidad_victorias, cantidad_derrotas, cantidad_rounds_ganados, cantidad_rounds_perdidos)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [equipo.id_equipo, idTorneo, equipo.posicion, equipo.cantidadCombates, equipo.cantidadVictorias, equipo.cantidadDerrotas, equipo.cantidadRoundGanados, equipo.cantidadRoundPerdidos || null]
           );
+        }
+
+        if (Array.isArray(peleadores)) {
+          for (const p of peleadores) {
+            await trx.run(
+              `INSERT OR IGNORE INTO equipo_peleador (id_equipo, id_usuario) VALUES (?, ?)`,
+              [p.idEquipo, p.idUsuario]
+            );
+            await trx.run(
+              `INSERT OR REPLACE INTO torneo_equipo_peleador
+               (id_torneo, id_equipo, id_usuario, numero_peleador, cantidad_amarillas, descalificado)
+               VALUES (?, ?, ?, ?, 0, 0)`,
+              [idTorneo, p.idEquipo, p.idUsuario, p.numeroPeleador]
+            );
+            await trx.run(
+              `INSERT OR IGNORE INTO torneo_luchador
+               (id_torneo, id_usuario, cantidad_combates, cantidad_victorias, cantidad_derrotas, cantidad_rounds_ganados, cantidad_rounds_perdidos)
+               VALUES (?, ?, 0, 0, 0, 0, 0)`,
+              [idTorneo, p.idUsuario]
+            );
+          }
         }
 
         for (let i = 0; i < combates.length; i++) {

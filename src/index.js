@@ -14,6 +14,8 @@ const newsRoutes = require('./routes/news');
 const marshallsRoutes = require('./routes/marshalls');
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
+const fightersRoutes = require('./routes/fighters');
+const peleadoresRoutes = require('./routes/peleadores');
 const uploadRoutes = require('./routes/upload');
 
 const initSchema = require('./database/schema');
@@ -92,6 +94,8 @@ app.use('/api', newsRoutes);
 app.use('/api', marshallsRoutes);
 app.use('/api', authRoutes);
 app.use('/api', usersRoutes);
+app.use('/api', fightersRoutes);
+app.use('/api', peleadoresRoutes);
 app.use('/api', uploadRoutes);
 
 app.get('/api/health', (req, res) => {

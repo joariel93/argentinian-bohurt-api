@@ -11,6 +11,7 @@ router.get('/v1/combat-types/:idModalidad', tournamentsController.getCombatTypes
 router.get('/v1/tournaments/:tournamentId/info', tournamentsController.getInfo);
 router.get('/v1/tournaments/by-organizer/:organizerId', tournamentsController.checkExists);
 router.get('/v1/torneo/:idTorneo/equipos', tournamentsController.getEquipos);
+router.get('/v1/torneo/:idTorneo/equipo/:idEquipo', tournamentsController.getEquipoEnTorneo);
 router.get('/v1/torneo/:idTorneo/combates', tournamentsController.getCombates);
 router.get('/v1/torneo/:idTorneo/estadisticas', tournamentsController.getEstadisticas);
 router.post('/v1/tournaments', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.submit);
