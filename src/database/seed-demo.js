@@ -1,13 +1,7 @@
 const db = require('./connection');
 const initSchema = require('./schema');
 const bcrypt = require('bcryptjs');
-
-const KEY = 'buhurt-marshall-dni';
-function encryptDni(dni) {
-  const keyBytes = [...KEY].map((c) => c.charCodeAt(0));
-  const bytes = [...String(dni)].map((c, i) => c.charCodeAt(0) ^ keyBytes[i % keyBytes.length]);
-  return Buffer.from(bytes).toString('base64');
-}
+const { encryptDni, dniHash, dniLast4 } = require('../utils/dniCrypto');
 
 const seedDemo = async () => {
   await initSchema();
@@ -47,9 +41,9 @@ const seedDemo = async () => {
   ];
   for (const [id, nombre, apellido, dni] of luchadores) {
     await db.run(
-      `INSERT OR REPLACE INTO usuario (id_usuario, username, password, nombre, apellido, id_tipo_usuario)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, encryptDni(dni), '', nombre, apellido, 4]
+      `INSERT OR REPLACE INTO usuario (id_usuario, username, password, nombre, apellido, id_tipo_usuario, dni_hash, dni_last4)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, encryptDni(dni), '', nombre, apellido, 4, dniHash(dni), dniLast4(dni)]
     );
   }
 

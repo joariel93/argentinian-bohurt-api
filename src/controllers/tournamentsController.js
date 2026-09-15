@@ -412,7 +412,7 @@ const tournamentsController = {
       combates.map(async (c) => {
         const rounds = await db.all(
           `SELECT rc.round, rc.id_equipo_ganador, rc.puntos_ganador, rc.puntos_perdedor,
-                  eg.nombre AS nombreEquipoGanador
+                  rc.hombres_en_pie_a, rc.hombres_en_pie_b, eg.nombre AS nombreEquipoGanador
            FROM round_combate rc
            LEFT JOIN equipo eg ON rc.id_equipo_ganador = eg.id_equipo
            WHERE rc.id_torneo = ? AND rc.id_combate = ?
@@ -446,6 +446,8 @@ const tournamentsController = {
               nombreEquipoGanador: r.nombreEquipoGanador,
               puntosEquipoA: ganoA ? r.puntos_ganador : r.puntos_perdedor,
               puntosEquipoB: ganoA ? r.puntos_perdedor : r.puntos_ganador,
+              hombresEnPieA: r.hombres_en_pie_a ?? 0,
+              hombresEnPieB: r.hombres_en_pie_b ?? 0,
             };
           }),
         };
@@ -590,12 +592,180 @@ const tournamentsController = {
   removeEquipo: async (req, res) => {
     const { idTorneo, idEquipo } = req.params;
 
+    const hasCombates = await db.get(
+      `SELECT 1 FROM combate WHERE id_torneo = ? AND (id_equipo_a = ? OR id_equipo_b = ? OR id_equipo_ganador = ?) LIMIT 1`,
+      [idTorneo, idEquipo, idEquipo, idEquipo]
+    );
+    if (hasCombates) {
+      return res.status(409).json({ error: 'No se puede eliminar un equipo que tiene combates registrados' });
+    }
+
+    await db.run(
+      `DELETE FROM torneo_equipo_peleador WHERE id_torneo = ? AND id_equipo = ?`,
+      [idTorneo, idEquipo]
+    );
     await db.run(
       `DELETE FROM torneo_equipo WHERE id_torneo = ? AND id_equipo = ?`,
       [idTorneo, idEquipo]
     );
 
     res.json({ message: 'Equipo removido del torneo' });
+  },
+
+  getFullEdit: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const torneo = await db.get(
+        `SELECT id_torneo, nombre, fecha_torneo AS fechaTorneo, fecha_cierre_inscripcion AS fechaCierreInscripcion,
+                localizacion, imagen, link_transmision AS linkTransmision,
+                id_organizador AS idOrganizador, id_reglamento AS idReglamento,
+                id_genero AS idGenero, id_categoria AS idCategoria,
+                id_modalidad AS idModalidad, id_tipo_torneo AS idTipoTorneo
+         FROM torneo WHERE id_torneo = ?`,
+        [id]
+      );
+      if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
+
+      const redesSociales = await getRedesSocialesTorneoAdmin(id);
+
+      const equipos = await db.all(
+        `SELECT te.id_equipo AS id, e.nombre, e.logo, e.fecha_creacion AS fechaCreacion, te.posicion
+         FROM torneo_equipo te
+         JOIN equipo e ON te.id_equipo = e.id_equipo
+         WHERE te.id_torneo = ?
+         ORDER BY e.nombre`,
+        [id]
+      );
+
+      const equiposConPeleadores = await Promise.all(
+        equipos.map(async (eq) => {
+          const peleadores = await db.all(
+            `SELECT u.id_usuario AS id, u.nombre, u.apellido, u.username,
+                    tep.numero_peleador AS numeroPeleador, tep.cantidad_amarillas AS amarillas, tep.descalificado
+             FROM torneo_equipo_peleador tep
+             JOIN usuario u ON tep.id_usuario = u.id_usuario
+             WHERE tep.id_torneo = ? AND tep.id_equipo = ?
+             ORDER BY tep.numero_peleador`,
+            [id, eq.id]
+          );
+          return {
+            ...eq,
+            peleadores: peleadores.map((p) => ({
+              id: p.id,
+              nombre: p.nombre,
+              apellido: p.apellido,
+              dni: decryptDni(p.username),
+              numeroPeleador: p.numeroPeleador,
+              amarillas: p.amarillas,
+              descalificado: !!p.descalificado,
+            })),
+          };
+        })
+      );
+
+      const combates = await db.all(
+        `SELECT c.id_combate, c.orden, c.link, c.fase, c.grupo, c.ronda,
+                c.id_equipo_a, c.id_equipo_b, c.id_equipo_ganador,
+                c.cantidad_round_ganados_ganador, c.cantidad_round_ganados_perdedor,
+                ea.nombre AS nombreEquipoA, ea.logo AS logoEquipoA,
+                eb.nombre AS nombreEquipoB, eb.logo AS logoEquipoB,
+                eg.nombre AS nombreEquipoGanador
+         FROM combate c
+         JOIN equipo ea ON c.id_equipo_a = ea.id_equipo
+         JOIN equipo eb ON c.id_equipo_b = eb.id_equipo
+         LEFT JOIN equipo eg ON c.id_equipo_ganador = eg.id_equipo
+         WHERE c.id_torneo = ?
+         ORDER BY c.orden ASC`,
+        [id]
+      );
+
+      const combatesConRounds = await Promise.all(
+        combates.map(async (c) => {
+          const rounds = await db.all(
+            `SELECT rc.round, rc.id_equipo_ganador, rc.puntos_ganador, rc.puntos_perdedor,
+                    rc.hombres_en_pie_a, rc.hombres_en_pie_b, eg.nombre AS nombreEquipoGanador
+             FROM round_combate rc
+             LEFT JOIN equipo eg ON rc.id_equipo_ganador = eg.id_equipo
+             WHERE rc.id_torneo = ? AND rc.id_combate = ?
+             ORDER BY rc.round ASC`,
+            [id, c.id_combate]
+          );
+          return {
+            id: c.id_combate,
+            orden: c.orden,
+            link: c.link || null,
+            fase: c.fase || null,
+            grupo: c.grupo || null,
+            ronda: c.ronda || null,
+            finalizado: !!c.id_equipo_ganador,
+            idEquipoA: c.id_equipo_a,
+            nombreEquipoA: c.nombreEquipoA,
+            logoEquipoA: c.logoEquipoA,
+            idEquipoB: c.id_equipo_b,
+            nombreEquipoB: c.nombreEquipoB,
+            logoEquipoB: c.logoEquipoB,
+            idEquipoGanador: c.id_equipo_ganador,
+            nombreEquipoGanador: c.nombreEquipoGanador,
+            roundsGanadosGanador: c.cantidad_round_ganados_ganador,
+            roundsGanadosPerdedor: c.cantidad_round_ganados_perdedor,
+            rounds: rounds.map((r) => {
+              const ganoA = r.id_equipo_ganador === c.id_equipo_a;
+              return {
+                round: r.round,
+                idEquipoGanador: r.id_equipo_ganador,
+                nombreEquipoGanador: r.nombreEquipoGanador,
+                puntosEquipoA: ganoA ? r.puntos_ganador : r.puntos_perdedor,
+                puntosEquipoB: ganoA ? r.puntos_perdedor : r.puntos_ganador,
+                hombresEnPieA: r.hombres_en_pie_a ?? 0,
+                hombresEnPieB: r.hombres_en_pie_b ?? 0,
+              };
+            }),
+          };
+        })
+      );
+
+      res.json({
+        torneo: {
+          ...torneo,
+          redesSociales,
+        },
+        equipos: equiposConPeleadores,
+        combates: combatesConRounds,
+      });
+    } catch (error) {
+      console.error('Error en getFullEdit:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  },
+
+  updateRound: async (req, res) => {
+    try {
+      const { idTorneo, idCombate, round } = req.params;
+      const { puntosEquipoA, puntosEquipoB, hombresEnPieA, hombresEnPieB } = req.body;
+
+      const combate = await db.get(
+        `SELECT id_equipo_a, id_equipo_b, id_equipo_ganador FROM combate WHERE id_torneo = ? AND id_combate = ?`,
+        [idTorneo, idCombate]
+      );
+      if (!combate) return res.status(404).json({ error: 'Combate no encontrado' });
+
+      const ganoA = combate.id_equipo_ganador === combate.id_equipo_a;
+      const puntosGanador = ganoA ? puntosEquipoA : puntosEquipoB;
+      const puntosPerdedor = ganoA ? puntosEquipoB : puntosEquipoA;
+
+      await db.run(
+        `UPDATE round_combate
+         SET puntos_ganador = ?, puntos_perdedor = ?, hombres_en_pie_a = ?, hombres_en_pie_b = ?
+         WHERE id_torneo = ? AND id_combate = ? AND round = ?`,
+        [puntosGanador, puntosPerdedor, hombresEnPieA ?? 0, hombresEnPieB ?? 0, idTorneo, idCombate, round]
+      );
+
+      res.json({ message: 'Round actualizado' });
+    } catch (error) {
+      console.error('Error en updateRound:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
   },
 };
 

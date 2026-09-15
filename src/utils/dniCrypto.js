@@ -1,9 +1,17 @@
+const crypto = require('crypto');
+
 const KEY = 'buhurt-marshall-dni';
 
-function encryptDni(dni) {
+function normalizeDni(dni) {
   if (!dni) return '';
+  return String(dni).replace(/\D/g, '');
+}
+
+function encryptDni(dni) {
+  const clean = normalizeDni(dni);
+  if (!clean) return '';
   const keyBytes = [...KEY].map((c) => c.charCodeAt(0));
-  const bytes = [...String(dni)].map((c, i) => c.charCodeAt(0) ^ keyBytes[i % keyBytes.length]);
+  const bytes = [...clean].map((c, i) => c.charCodeAt(0) ^ keyBytes[i % keyBytes.length]);
   return Buffer.from(String.fromCharCode(...bytes), 'binary').toString('base64');
 }
 
@@ -19,4 +27,16 @@ function decryptDni(username) {
   }
 }
 
-module.exports = { encryptDni, decryptDni };
+function dniHash(dni) {
+  const clean = normalizeDni(dni);
+  if (!clean) return '';
+  return crypto.createHash('sha256').update(clean).digest('hex');
+}
+
+function dniLast4(dni) {
+  const clean = normalizeDni(dni);
+  if (!clean) return '';
+  return clean.slice(-4);
+}
+
+module.exports = { normalizeDni, encryptDni, decryptDni, dniHash, dniLast4 };

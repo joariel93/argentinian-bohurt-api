@@ -63,9 +63,34 @@ const createTables = async () => {
     email TEXT,
     telefono TEXT,
     id_tipo_usuario INTEGER NOT NULL,
+    dni_hash TEXT,
+    dni_last4 TEXT,
     UNIQUE(username, id_tipo_usuario),
     FOREIGN KEY (id_tipo_usuario) REFERENCES tipo_usuario(id_tipo_usuario)
   )`);
+
+  const usuarioCols = await db.all(`PRAGMA table_info(usuario)`);
+  if (!usuarioCols.some((c) => c.name === 'dni_hash')) {
+    await db.run(`ALTER TABLE usuario ADD COLUMN dni_hash TEXT`);
+  }
+  if (!usuarioCols.some((c) => c.name === 'dni_last4')) {
+    await db.run(`ALTER TABLE usuario ADD COLUMN dni_last4 TEXT`);
+  }
+
+  // Migrar usuarios existentes de tipo luchador que no tengan hash/last4 calculados
+  const { dniHash, dniLast4, decryptDni } = require('../utils/dniCrypto');
+  const usuariosSinHash = await db.all(
+    `SELECT id_usuario, username FROM usuario WHERE id_tipo_usuario = 4 AND (dni_hash IS NULL OR dni_last4 IS NULL)`
+  );
+  for (const u of usuariosSinHash) {
+    const dniPlano = decryptDni(u.username);
+    if (dniPlano) {
+      await db.run(
+        `UPDATE usuario SET dni_hash = ?, dni_last4 = ? WHERE id_usuario = ?`,
+        [dniHash(dniPlano), dniLast4(dniPlano), u.id_usuario]
+      );
+    }
+  }
 
   // Migración: si la tabla usuario venía con UNIQUE(username), se reconstruye
   // para permitir el mismo DNI con distintos tipos de usuario.
@@ -92,12 +117,14 @@ const createTables = async () => {
         email TEXT,
         telefono TEXT,
         id_tipo_usuario INTEGER NOT NULL,
+        dni_hash TEXT,
+        dni_last4 TEXT,
         UNIQUE(username, id_tipo_usuario),
         FOREIGN KEY (id_tipo_usuario) REFERENCES tipo_usuario(id_tipo_usuario)
       )`);
       await db.run(`INSERT INTO usuario_new
-        (id_usuario, username, password, nombre, apellido, email, telefono, id_tipo_usuario)
-        SELECT id_usuario, username, password, nombre, apellido, email, telefono, id_tipo_usuario
+        (id_usuario, username, password, nombre, apellido, email, telefono, id_tipo_usuario, dni_hash, dni_last4)
+        SELECT id_usuario, username, password, nombre, apellido, email, telefono, id_tipo_usuario, dni_hash, dni_last4
         FROM usuario`);
       await db.run(`DROP TABLE usuario`);
       await db.run(`ALTER TABLE usuario_new RENAME TO usuario`);
@@ -410,10 +437,20 @@ const createTables = async () => {
     id_equipo_ganador TEXT,
     puntos_ganador INTEGER DEFAULT 0,
     puntos_perdedor INTEGER DEFAULT 0,
+    hombres_en_pie_a INTEGER DEFAULT 0,
+    hombres_en_pie_b INTEGER DEFAULT 0,
     PRIMARY KEY (id_torneo, id_combate, orden, round),
     FOREIGN KEY (id_torneo, id_combate) REFERENCES combate(id_torneo, id_combate),
     FOREIGN KEY (id_equipo_ganador) REFERENCES equipo(id_equipo)
   )`);
+
+  const rcCols = await db.all(`PRAGMA table_info(round_combate)`);
+  if (!rcCols.some((c) => c.name === 'hombres_en_pie_a')) {
+    await db.run(`ALTER TABLE round_combate ADD COLUMN hombres_en_pie_a INTEGER DEFAULT 0`);
+  }
+  if (!rcCols.some((c) => c.name === 'hombres_en_pie_b')) {
+    await db.run(`ALTER TABLE round_combate ADD COLUMN hombres_en_pie_b INTEGER DEFAULT 0`);
+  }
 
   await db.run(`CREATE TABLE IF NOT EXISTS round_peleador (
     id_torneo TEXT NOT NULL,
