@@ -1,6 +1,7 @@
-const bcrypt = require('bcryptjs');
-const db = require('../database/connection');
-const { v4: uuidv4 } = require('uuid');
+import bcrypt from 'bcryptjs';
+import db from '../database/connection.js';
+import { v4 as uuidv4 } from 'uuid';
+
 
 const SALT_ROUNDS = 10;
 
@@ -204,4 +205,4 @@ const usersController = {
   },
 };
 
-module.exports = usersController;
+export default usersController;

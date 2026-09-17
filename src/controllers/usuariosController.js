@@ -1,8 +1,10 @@
-const bcrypt = require('bcryptjs');
-const { OAuth2Client } = require('google-auth-library');
-const db = require('../database/connection');
-const { v4: uuidv4 } = require('uuid');
-const refreshTokenService = require('../services/refreshTokenService');
+import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
+import db from '../database/connection.js';
+import { v4 as uuidv4 } from 'uuid';
+import refreshTokenService from '../services/refreshTokenService.js';
+  import jwt from 'jsonwebtoken';
+
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -43,7 +45,6 @@ const setAuthCookies = (res, req, accessToken, refreshTokenRaw, refreshExpiresAt
 };
 
 const createAccessToken = (user) => {
-  const jwt = require('jsonwebtoken');
   return jwt.sign(
     {
       id: user.id_usuario,
@@ -235,4 +236,4 @@ const usuariosController = {
   },
 };
 
-module.exports = usuariosController;
+export default usuariosController;

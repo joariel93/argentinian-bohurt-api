@@ -1,24 +1,26 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+import dotenvModule from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import lookupsRoutes from './routes/lookups.js';
+import clubsRoutes from './routes/clubs.js';
+import teamsRoutes from './routes/teams.js';
+import tournamentsRoutes from './routes/tournaments.js';
+import organizersRoutes from './routes/organizers.js';
+import newsRoutes from './routes/news.js';
+import marshallsRoutes from './routes/marshalls.js';
+import authRoutes from './routes/auth.js';
+import usersRoutes from './routes/users.js';
+import fightersRoutes from './routes/fighters.js';
+import peleadoresRoutes from './routes/peleadores.js';
+import uploadRoutes from './routes/upload.js';
+import initSchema from './database/schema.js';
 
-const lookupsRoutes = require('./routes/lookups');
-const clubsRoutes = require('./routes/clubs');
-const teamsRoutes = require('./routes/teams');
-const tournamentsRoutes = require('./routes/tournaments');
-const organizersRoutes = require('./routes/organizers');
-const newsRoutes = require('./routes/news');
-const marshallsRoutes = require('./routes/marshalls');
-const authRoutes = require('./routes/auth');
-const usersRoutes = require('./routes/users');
-const fightersRoutes = require('./routes/fighters');
-const peleadoresRoutes = require('./routes/peleadores');
-const uploadRoutes = require('./routes/upload');
+dotenvModule.config();
 
-const initSchema = require('./database/schema');
+
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -126,4 +128,4 @@ initSchema()
     process.exit(1);
   });
 
-module.exports = { app, asyncHandler };
+export default { app, asyncHandler };

@@ -1,7 +1,8 @@
-const db = require('./connection');
-const initSchema = require('./schema');
-const bcrypt = require('bcryptjs');
-const { encryptDni, dniHash, dniLast4 } = require('../utils/dniCrypto');
+import db from './connection.js';
+import initSchema from './schema.js';
+import bcrypt from 'bcryptjs';
+import { encryptDni, dniHash, dniLast4 } from '../utils/dniCrypto.js';
+
 
 const seedDemo = async () => {
   await initSchema();
@@ -145,4 +146,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = seedDemo;
+export default seedDemo;

@@ -1,5 +1,6 @@
-const db = require('../database/connection');
-const { decryptDni } = require('../utils/dniCrypto');
+import db from '../database/connection.js';
+import { decryptDni } from '../utils/dniCrypto.js';
+
 
 const peleadoresController = {
   getById: async (req, res) => {
@@ -79,4 +80,4 @@ const peleadoresController = {
   },
 };
 
-module.exports = peleadoresController;
+export default peleadoresController;

@@ -1,5 +1,6 @@
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
+
 
 const OTP_LENGTH = 6;
 const SALT_ROUNDS = 10;
@@ -19,4 +20,4 @@ const otpService = {
   },
 };
 
-module.exports = otpService;
+export default otpService;

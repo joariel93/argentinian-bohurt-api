@@ -1,7 +1,8 @@
-const express = require('express');
+import express from 'express';
+import organizersController from '../controllers/organizersController.js';
+
 const router = express.Router();
-const organizersController = require('../controllers/organizersController');
 
 router.post('/v1/organizers/:organizerId/validate-otp', organizersController.validateOtp);
 
-module.exports = router;
+export default router;

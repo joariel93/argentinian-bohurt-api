@@ -1,4 +1,5 @@
-const db = require('../database/connection');
+import db from '../database/connection.js';
+
 
 const newsController = {
   getAll: async (req, res) => {
@@ -68,4 +69,4 @@ const newsController = {
   },
 };
 
-module.exports = newsController;
+export default newsController;

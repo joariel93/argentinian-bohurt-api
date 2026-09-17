@@ -1,4 +1,6 @@
-const db = require('./connection');
+import db from './connection.js';
+import { dniHash, dniLast4, decryptDni } from '../utils/dniCrypto.js';
+
 
 const createTables = async () => {
   // ---- LOOKUP TABLES (INTEGER PKs) ----
@@ -78,7 +80,6 @@ const createTables = async () => {
   }
 
   // Migrar usuarios existentes de tipo luchador que no tengan hash/last4 calculados
-  const { dniHash, dniLast4, decryptDni } = require('../utils/dniCrypto');
   const usuariosSinHash = await db.all(
     `SELECT id_usuario, username FROM usuario WHERE id_tipo_usuario = 4 AND (dni_hash IS NULL OR dni_last4 IS NULL)`
   );
@@ -492,4 +493,4 @@ const createTables = async () => {
   console.log('Tablas creadas correctamente');
 };
 
-module.exports = createTables;
+export default createTables;

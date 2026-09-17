@@ -1,5 +1,6 @@
-const db = require('./connection');
-const initSchema = require('./schema');
+import db from './connection.js';
+import initSchema from './schema.js';
+
 
 const seed = async () => {
   await initSchema();
@@ -87,4 +88,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = seed;
+export default seed;

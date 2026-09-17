@@ -1,9 +1,10 @@
-const express = require('express');
+import express from 'express';
+import marshallsController from '../controllers/marshallsController.js';
+import usuariosController from '../controllers/usuariosController.js';
+import authMiddleware from '../middleware/authMiddleware.js';
+import roleMiddleware from '../middleware/roleMiddleware.js';
+
 const router = express.Router();
-const marshallsController = require('../controllers/marshallsController');
-const usuariosController = require('../controllers/usuariosController');
-const authMiddleware = require('../middleware/authMiddleware');
-const roleMiddleware = require('../middleware/roleMiddleware');
 
 const MARSHALL_ROLES = [1, 2, 5]; // Admin, Organizador, Marshall
 
@@ -51,4 +52,4 @@ router.put('/v1/marshall/torneo/:idTorneo/grupos', authMiddleware, roleMiddlewar
 // Estadísticas
 router.get('/v1/marshall/torneo/:idTorneo/estadisticas', authMiddleware, roleMiddleware(MARSHALL_ROLES), marshallsController.getEstadisticas);
 
-module.exports = router;
+export default router;

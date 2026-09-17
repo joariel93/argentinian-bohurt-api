@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import lookupsController from '../controllers/lookupsController.js';
+
 const router = express.Router();
-const lookupsController = require('../controllers/lookupsController');
 
 router.get('/lookups/colores', lookupsController.getColores);
 router.get('/lookups/genero', lookupsController.getGenero);
@@ -11,4 +12,4 @@ router.get('/lookups/tipo-usuario', lookupsController.getTipoUsuario);
 router.get('/lookups/redes-sociales', lookupsController.getRedesSociales);
 router.get('/lookups/reglamento', lookupsController.getReglamento);
 
-module.exports = router;
+export default router;

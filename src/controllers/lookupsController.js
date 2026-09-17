@@ -1,4 +1,5 @@
-const db = require('../database/connection');
+import db from '../database/connection.js';
+
 
 const lookupsController = {
   getColores: async (req, res) => {
@@ -46,4 +47,4 @@ const lookupsController = {
   },
 };
 
-module.exports = lookupsController;
+export default lookupsController;

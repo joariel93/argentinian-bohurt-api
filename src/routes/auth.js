@@ -1,10 +1,11 @@
-const express = require('express');
+import express from 'express';
+import authController from '../controllers/authController.js';
+import usuariosController from '../controllers/usuariosController.js';
+import authMiddleware from '../middleware/authMiddleware.js';
+import validate from '../middleware/validate.js';
+import { loginSchema, googleLoginSchema } from '../schemas/authSchemas.js';
+
 const router = express.Router();
-const authController = require('../controllers/authController');
-const usuariosController = require('../controllers/usuariosController');
-const authMiddleware = require('../middleware/authMiddleware');
-const validate = require('../middleware/validate');
-const { loginSchema, googleLoginSchema } = require('../schemas/authSchemas');
 
 router.post('/v1/auth/login', validate(loginSchema), authController.login);
 router.post('/v1/auth/refresh', authController.refresh);
@@ -16,4 +17,4 @@ router.get('/v1/auth/me', authMiddleware, authController.me);
 router.post('/v1/marshall/auth/login', validate(loginSchema), usuariosController.loginMarshall);
 router.post('/v1/marshall/auth/google', validate(googleLoginSchema), usuariosController.loginGoogle);
 
-module.exports = router;
+export default router;

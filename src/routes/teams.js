@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import teamsController from '../controllers/teamsController.js';
+import authMiddleware from '../middleware/authMiddleware.js';
+import roleMiddleware from '../middleware/roleMiddleware.js';
+
 const router = express.Router();
-const teamsController = require('../controllers/teamsController');
-const authMiddleware = require('../middleware/authMiddleware');
-const roleMiddleware = require('../middleware/roleMiddleware');
 
 const ADMIN_ROLES = [1];
 
@@ -17,4 +18,4 @@ router.post('/v1/admin/teams', authMiddleware, roleMiddleware(ADMIN_ROLES), team
 router.put('/v1/teams/:idTeam', authMiddleware, roleMiddleware(ADMIN_ROLES), teamsController.update);
 router.delete('/v1/teams/:idTeam', authMiddleware, roleMiddleware(ADMIN_ROLES), teamsController.delete);
 
-module.exports = router;
+export default router;

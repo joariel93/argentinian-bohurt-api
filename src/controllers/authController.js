@@ -1,7 +1,8 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const db = require('../database/connection');
-const refreshTokenService = require('../services/refreshTokenService');
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import db from '../database/connection.js';
+import refreshTokenService from '../services/refreshTokenService.js';
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
@@ -232,4 +233,4 @@ const authController = {
   },
 };
 
-module.exports = authController;
+export default authController;

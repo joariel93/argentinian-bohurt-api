@@ -1,13 +1,14 @@
-const { z } = require('zod');
+import { z } from 'zod';
 
-const loginSchema = z.object({
+
+export const loginSchema = z.object({
   body: z.object({
     email: z.string().email('Email inválido').max(255),
     password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').max(255),
   }),
 });
 
-const createUserSchema = z.object({
+export const createUserSchema = z.object({
   body: z.object({
     username: z.string().min(3).max(100),
     password: z.string().min(6).max(255),
@@ -19,7 +20,7 @@ const createUserSchema = z.object({
   }),
 });
 
-const updateUserSchema = z.object({
+export const updateUserSchema = z.object({
   body: z.object({
     username: z.string().min(3).max(100).optional(),
     password: z.string().min(6).max(255).optional(),
@@ -31,15 +32,10 @@ const updateUserSchema = z.object({
   }),
 });
 
-const googleLoginSchema = z.object({
+export const googleLoginSchema = z.object({
   body: z.object({
     idToken: z.string().min(1, 'El idToken de Google es requerido'),
   }),
 });
 
-module.exports = {
-  loginSchema,
-  createUserSchema,
-  updateUserSchema,
-  googleLoginSchema,
-};
+

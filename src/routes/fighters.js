@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import fightersController from '../controllers/fightersController.js';
+import authMiddleware from '../middleware/authMiddleware.js';
+import roleMiddleware from '../middleware/roleMiddleware.js';
+
 const router = express.Router();
-const fightersController = require('../controllers/fightersController');
-const authMiddleware = require('../middleware/authMiddleware');
-const roleMiddleware = require('../middleware/roleMiddleware');
 
 const ADMIN_ROLES = [1];
 
@@ -12,4 +13,4 @@ router.post('/v1/admin/torneo/:idTorneo/equipo/:idEquipo/peleador', authMiddlewa
 router.put('/v1/admin/torneo/:idTorneo/equipo/:idEquipo/peleador/:idUsuario/numero', authMiddleware, roleMiddleware(ADMIN_ROLES), fightersController.updateNumeroPeleador);
 router.delete('/v1/admin/torneo/:idTorneo/equipo/:idEquipo/peleador/:idUsuario', authMiddleware, roleMiddleware(ADMIN_ROLES), fightersController.removeFromTeamTournament);
 
-module.exports = router;
+export default router;

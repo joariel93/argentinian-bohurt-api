@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import tournamentsController from '../controllers/tournamentsController.js';
+import authMiddleware from '../middleware/authMiddleware.js';
+import roleMiddleware from '../middleware/roleMiddleware.js';
+
 const router = express.Router();
-const tournamentsController = require('../controllers/tournamentsController');
-const authMiddleware = require('../middleware/authMiddleware');
-const roleMiddleware = require('../middleware/roleMiddleware');
 
 const ADMIN_ROLES = [1];
 
@@ -30,4 +31,4 @@ router.delete('/v1/tournaments/:id', authMiddleware, roleMiddleware(ADMIN_ROLES)
 router.delete('/v1/torneo/:idTorneo/equipos/:idEquipo', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removeEquipo);
 router.put('/v1/torneo/:idTorneo/combate/:idCombate/round/:round', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.updateRound);
 
-module.exports = router;
+export default router;

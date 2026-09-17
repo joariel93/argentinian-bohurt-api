@@ -1,6 +1,7 @@
-const db = require('../database/connection');
-const { v4: uuidv4 } = require('uuid');
-const { encryptDni, decryptDni, dniHash, dniLast4, normalizeDni } = require('../utils/dniCrypto');
+import db from '../database/connection.js';
+import { v4 as uuidv4 } from 'uuid';
+import { encryptDni, decryptDni, dniHash, dniLast4, normalizeDni } from '../utils/dniCrypto.js';
+
 
 const TIPO_LUCHADOR = 4;
 
@@ -302,4 +303,4 @@ const fightersController = {
   },
 };
 
-module.exports = fightersController;
+export default fightersController;

@@ -1,5 +1,6 @@
-const cloudinary = require('cloudinary').v2;
-const multer = require('multer');
+import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer';
+
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -55,4 +56,4 @@ const uploadController = {
   ],
 };
 
-module.exports = uploadController;
+export default uploadController;

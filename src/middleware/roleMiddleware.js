@@ -1,3 +1,4 @@
+
 const roleMiddleware = (allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
@@ -12,4 +13,4 @@ const roleMiddleware = (allowedRoles) => {
   };
 };
 
-module.exports = roleMiddleware;
+export default roleMiddleware;

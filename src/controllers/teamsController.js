@@ -1,6 +1,7 @@
-const db = require('../database/connection');
-const { v4: uuidv4 } = require('uuid');
-const { decryptDni } = require('../utils/dniCrypto');
+import db from '../database/connection.js';
+import { v4 as uuidv4 } from 'uuid';
+import { decryptDni } from '../utils/dniCrypto.js';
+
 
 async function deleteTeamAndDependencies(trx, idEquipo) {
   // 1. Eliminar combates donde el equipo participa (A, B o ganador)
@@ -332,4 +333,5 @@ const teamsController = {
   },
 };
 
-module.exports = { ...teamsController, deleteTeamAndDependencies };
+export default teamsController;
+export { deleteTeamAndDependencies };

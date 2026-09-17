@@ -1,3 +1,4 @@
+
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 
 const apiKeyMiddleware = (req, res, next) => {
@@ -15,4 +16,4 @@ const apiKeyMiddleware = (req, res, next) => {
   next();
 };
 
-module.exports = apiKeyMiddleware;
+export default apiKeyMiddleware;

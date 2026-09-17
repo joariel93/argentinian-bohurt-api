@@ -1,6 +1,13 @@
-const { createClient } = require('@libsql/client');
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+import { createClient } from '@libsql/client';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import sqlite3 from 'sqlite3';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const useTurso = process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN;
 
@@ -63,7 +70,6 @@ if (useTurso) {
   };
 } else {
   // Fallback SQLite local para desarrollo offline
-  const sqlite3 = require('sqlite3').verbose();
   const dbPath = process.env.DB_PATH || './src/database/buhurt.db';
   const db = new sqlite3.Database(path.resolve(__dirname, '../../', dbPath));
 
@@ -131,4 +137,4 @@ if (useTurso) {
   };
 }
 
-module.exports = dbAsync;
+export default dbAsync;

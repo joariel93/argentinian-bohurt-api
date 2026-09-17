@@ -1,5 +1,6 @@
-const db = require('../database/connection');
-const otpService = require('../services/otpService');
+import db from '../database/connection.js';
+import otpService from '../services/otpService.js';
+
 
 const organizersController = {
   validateOtp: async (req, res) => {
@@ -28,4 +29,4 @@ const organizersController = {
   },
 };
 
-module.exports = organizersController;
+export default organizersController;

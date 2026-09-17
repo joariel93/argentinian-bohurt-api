@@ -1,7 +1,8 @@
-const db = require('../database/connection');
-const { v4: uuidv4 } = require('uuid');
-const otpService = require('../services/otpService');
-const { decryptDni } = require('../utils/dniCrypto');
+import db from '../database/connection.js';
+import { v4 as uuidv4 } from 'uuid';
+import otpService from '../services/otpService.js';
+import { decryptDni } from '../utils/dniCrypto.js';
+
 
 function mapIconClass(icono) {
   const map = {
@@ -768,4 +769,4 @@ const tournamentsController = {
   },
 };
 
-module.exports = tournamentsController;
+export default tournamentsController;
