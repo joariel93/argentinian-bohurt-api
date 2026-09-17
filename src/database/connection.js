@@ -2,7 +2,6 @@ import { createClient } from '@libsql/client';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import sqlite3 from 'sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +69,7 @@ if (useTurso) {
   };
 } else {
   // Fallback SQLite local para desarrollo offline
+  const { default: sqlite3 } = await import('sqlite3');
   const dbPath = process.env.DB_PATH || './src/database/buhurt.db';
   const db = new sqlite3.Database(path.resolve(__dirname, '../../', dbPath));
 
