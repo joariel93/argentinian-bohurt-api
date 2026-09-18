@@ -155,7 +155,7 @@ const clubsController = {
   },
 
   create: async (req, res) => {
-    const { nombre, pais, ciudad, logo, fundacion, info, redesSociales } = req.body;
+    const { nombre, pais, ciudad, provincia, logo, fundacion, info, redesSociales } = req.body;
     if (!nombre || !fundacion) return res.status(400).json({ error: 'nombre y fundacion son requeridos' });
 
     const idClub = uuidv4();
