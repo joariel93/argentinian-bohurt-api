@@ -28,6 +28,11 @@ const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 const app = express();
+
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
 const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = [
