@@ -194,6 +194,12 @@ const tournamentsController = {
       return res.status(400).json({ error: 'nombre, localizacion, fechaTorneo y fechaCierreInscripcion son requeridos' });
     }
 
+    const normalizeFk = (val) => {
+      if (val === undefined || val === null) return null;
+      if (typeof val === 'object' && 'value' in val) return val.value || null;
+      return val;
+    };
+
     const otp = otpService.generate();
     const otpHash = otpService.hash(otp);
     const idTorneo = uuidv4();
@@ -206,7 +212,7 @@ const tournamentsController = {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [idTorneo, nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
           idOrganizador || null, idReglamento || 1, idGenero || 1, idCategoria || 1, idModalidad || 1,
-          idTipoTorneo || null, imagen || null, linkTransmision || null, otpHash]
+          normalizeFk(idTipoTorneo), imagen || null, linkTransmision || null, otpHash]
       );
 
       if (Array.isArray(redesSociales)) {

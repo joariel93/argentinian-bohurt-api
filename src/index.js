@@ -29,9 +29,9 @@ const asyncHandler = (fn) => (req, res, next) =>
 
 const app = express();
 
-if (isProduction) {
-  app.set('trust proxy', 1);
-}
+// Render (y la mayoría de los PaaS) siempre está detrás de un reverse proxy.
+// Si en local se usa un proxy también, esto es seguro; sino, X-Forwarded-For simplemente se ignora.
+app.set('trust proxy', 1);
 
 const PORT = process.env.PORT || 3001;
 

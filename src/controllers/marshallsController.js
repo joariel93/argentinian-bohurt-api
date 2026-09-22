@@ -1,5 +1,6 @@
 import db from '../database/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import otpService from '../services/otpService.js';
 
 
 async function getColoresEquipo(idEquipo) {
@@ -320,11 +321,19 @@ const marshallsController = {
         return res.status(400).json({ error: "El campo 'codigo' es requerido" });
       }
 
-      const t = await db.get(
-        `SELECT id_torneo, nombre, localizacion, fecha_torneo, id_modalidad, id_categoria, id_genero, id_tipo_torneo
-         FROM torneo WHERE password = ?`,
-        [codigo]
+      const torneos = await db.all(
+        `SELECT id_torneo, nombre, localizacion, fecha_torneo, id_modalidad, id_categoria, id_genero, id_tipo_torneo, password
+         FROM torneo WHERE password IS NOT NULL`
       );
+
+      let t = null;
+      for (const torneo of torneos) {
+        const valid = await otpService.verify(codigo, torneo.password);
+        if (valid) {
+          t = torneo;
+          break;
+        }
+      }
 
       if (!t) {
         return res.json({ accesoValido: false, mensaje: 'Código de acceso inválido' });
