@@ -74,11 +74,16 @@ async function getTeamsByClub(idClub) {
 const clubsController = {
   getAll: async (req, res) => {
     const clubs = await db.all(
-      `SELECT id_club AS id, nombre, pais AS country, ciudad, provincia, logo, fundacion, info FROM club ORDER BY nombre`
+      `SELECT id_club AS id, nombre, pais AS country, ciudad, provincia, logo, fundacion, info,
+              id_color1, id_color2, id_color3
+       FROM club ORDER BY nombre`
     );
     const result = await Promise.all(
       clubs.map(async (c) => ({
         ...c,
+        idColor1: c.id_color1,
+        idColor2: c.id_color2,
+        idColor3: c.id_color3,
         redesSociales: await getRedesSocialesClub(c.id),
       }))
     );
@@ -88,7 +93,12 @@ const clubsController = {
   getById: async (req, res) => {
     const { idClub } = req.params;
 
-    const club = await db.get(`SELECT id_club, nombre, pais, ciudad, provincia, logo, fundacion, info FROM club WHERE id_club = ?`, [idClub]);
+    const club = await db.get(
+      `SELECT id_club, nombre, pais, ciudad, provincia, logo, fundacion, info,
+              id_color1, id_color2, id_color3
+       FROM club WHERE id_club = ?`,
+      [idClub]
+    );
 
     if (!club) return res.status(404).json({ error: 'Club no encontrado' });
 
@@ -118,6 +128,9 @@ const clubsController = {
       country: club.pais,
       ciudad: club.ciudad,
       provincia: club.provincia,
+      idColor1: club.id_color1,
+      idColor2: club.id_color2,
+      idColor3: club.id_color3,
       redesSociales: clubRedes,
       teams: teamsWithSN,
     });
@@ -155,14 +168,16 @@ const clubsController = {
   },
 
   create: async (req, res) => {
-    const { nombre, pais, ciudad, provincia, logo, fundacion, info, redesSociales } = req.body;
+    const { nombre, pais, ciudad, provincia, logo, fundacion, info, redesSociales, idColor1, idColor2, idColor3 } = req.body;
     if (!nombre || !fundacion) return res.status(400).json({ error: 'nombre y fundacion son requeridos' });
 
     const idClub = uuidv4();
     await db.transaction(async (trx) => {
       await trx.run(
-        `INSERT INTO club (id_club, nombre, pais, ciudad, provincia, logo, fundacion, info) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [idClub, nombre, pais || null, ciudad || null, provincia || null, logo || null, fundacion, info || null]
+        `INSERT INTO club (id_club, nombre, pais, ciudad, provincia, logo, fundacion, info, id_color1, id_color2, id_color3)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [idClub, nombre, pais || null, ciudad || null, provincia || null, logo || null, fundacion, info || null,
+          idColor1 || 1, idColor2 || 1, idColor3 || 1]
       );
 
       if (Array.isArray(redesSociales)) {
@@ -183,7 +198,7 @@ const clubsController = {
     const existing = await db.get(`SELECT id_club FROM club WHERE id_club = ?`, [idClub]);
     if (!existing) return res.status(404).json({ error: 'Club no encontrado' });
 
-    const { nombre, pais, ciudad, provincia, logo, fundacion, info, redesSociales } = req.body;
+    const { nombre, pais, ciudad, provincia, logo, fundacion, info, redesSociales, idColor1, idColor2, idColor3 } = req.body;
 
     await db.transaction(async (trx) => {
       const fields = [];
@@ -196,6 +211,9 @@ const clubsController = {
       if (logo !== undefined) { fields.push('logo = ?'); values.push(logo); }
       if (fundacion !== undefined) { fields.push('fundacion = ?'); values.push(fundacion); }
       if (info !== undefined) { fields.push('info = ?'); values.push(info); }
+      if (idColor1 !== undefined) { fields.push('id_color1 = ?'); values.push(idColor1); }
+      if (idColor2 !== undefined) { fields.push('id_color2 = ?'); values.push(idColor2); }
+      if (idColor3 !== undefined) { fields.push('id_color3 = ?'); values.push(idColor3); }
 
       if (fields.length > 0) {
         values.push(idClub);

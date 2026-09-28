@@ -161,6 +161,15 @@ const createTables = async () => {
   if (!clubCols.some((c) => c.name === 'provincia')) {
     await db.run(`ALTER TABLE club ADD COLUMN provincia TEXT`);
   }
+  if (!clubCols.some((c) => c.name === 'id_color1')) {
+    await db.run(`ALTER TABLE club ADD COLUMN id_color1 INTEGER NOT NULL DEFAULT 1 REFERENCES colores(id_color)`);
+  }
+  if (!clubCols.some((c) => c.name === 'id_color2')) {
+    await db.run(`ALTER TABLE club ADD COLUMN id_color2 INTEGER NOT NULL DEFAULT 1 REFERENCES colores(id_color)`);
+  }
+  if (!clubCols.some((c) => c.name === 'id_color3')) {
+    await db.run(`ALTER TABLE club ADD COLUMN id_color3 INTEGER NOT NULL DEFAULT 1 REFERENCES colores(id_color)`);
+  }
 
   await db.run(`CREATE TABLE IF NOT EXISTS equipo (
     id_equipo TEXT PRIMARY KEY,

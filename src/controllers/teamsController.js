@@ -228,15 +228,23 @@ const teamsController = {
     const { idClub, nombre, logo, idColor1, idColor2, idColor3, idCategoria, idModalidad, idGenero, fechaCreacion, redesSociales } = req.body;
     if (!nombre || !idClub) return res.status(400).json({ error: 'nombre e idClub son requeridos' });
 
-    const club = await db.get(`SELECT id_club FROM club WHERE id_club = ?`, [idClub]);
+    const club = await db.get(
+      `SELECT id_club, id_color1, id_color2, id_color3 FROM club WHERE id_club = ?`,
+      [idClub]
+    );
     if (!club) return res.status(404).json({ error: 'Club no encontrado' });
+
+    // Si no se pasan colores en el body, heredar los del club.
+    const color1Final = idColor1 ?? club.id_color1;
+    const color2Final = idColor2 ?? club.id_color2;
+    const color3Final = idColor3 ?? club.id_color3;
 
     const idEquipo = uuidv4();
     await db.transaction(async (trx) => {
       await trx.run(
         `INSERT INTO equipo (id_equipo, nombre, logo, fecha_creacion, id_color1, id_color2, id_color3, id_categoria, id_modalidad, id_genero)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [idEquipo, nombre, logo || null, fechaCreacion || null, idColor1 || 1, idColor2 || 2, idColor3 || 3, idCategoria || 1, idModalidad || 1, idGenero || 1]
+        [idEquipo, nombre, logo || null, fechaCreacion || null, color1Final, color2Final, color3Final, idCategoria || 1, idModalidad || 1, idGenero || 1]
       );
 
       await trx.run(`INSERT OR REPLACE INTO club_equipos (id_club, id_equipo) VALUES (?, ?)`, [idClub, idEquipo]);

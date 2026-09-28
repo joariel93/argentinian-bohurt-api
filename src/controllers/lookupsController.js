@@ -3,7 +3,7 @@ import db from '../database/connection.js';
 
 const lookupsController = {
   getColores: async (req, res) => {
-    const rows = await db.all('SELECT id_color AS id, nombre AS valor FROM colores ORDER BY id_color');
+    const rows = await db.all('SELECT id_color AS id, nombre AS valor, hex FROM colores ORDER BY id_color');
     res.json(rows);
   },
 
