@@ -155,20 +155,26 @@ const createTables = async () => {
     ciudad TEXT,
     logo TEXT,
     fundacion TEXT NOT NULL,
-    info TEXT
+    info TEXT,
+    id_color1 INTEGER NOT NULL DEFAULT 1,
+    id_color2 INTEGER NOT NULL DEFAULT 1,
+    id_color3 INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (id_color1) REFERENCES colores(id_color),
+    FOREIGN KEY (id_color2) REFERENCES colores(id_color),
+    FOREIGN KEY (id_color3) REFERENCES colores(id_color)
   )`);
   const clubCols = await db.all(`PRAGMA table_info(club)`);
   if (!clubCols.some((c) => c.name === 'provincia')) {
     await db.run(`ALTER TABLE club ADD COLUMN provincia TEXT`);
   }
   if (!clubCols.some((c) => c.name === 'id_color1')) {
-    await db.run(`ALTER TABLE club ADD COLUMN id_color1 INTEGER NOT NULL DEFAULT 1 REFERENCES colores(id_color)`);
+    await db.run(`ALTER TABLE club ADD COLUMN id_color1 INTEGER NOT NULL DEFAULT 1`);
   }
   if (!clubCols.some((c) => c.name === 'id_color2')) {
-    await db.run(`ALTER TABLE club ADD COLUMN id_color2 INTEGER NOT NULL DEFAULT 1 REFERENCES colores(id_color)`);
+    await db.run(`ALTER TABLE club ADD COLUMN id_color2 INTEGER NOT NULL DEFAULT 1`);
   }
   if (!clubCols.some((c) => c.name === 'id_color3')) {
-    await db.run(`ALTER TABLE club ADD COLUMN id_color3 INTEGER NOT NULL DEFAULT 1 REFERENCES colores(id_color)`);
+    await db.run(`ALTER TABLE club ADD COLUMN id_color3 INTEGER NOT NULL DEFAULT 1`);
   }
 
   await db.run(`CREATE TABLE IF NOT EXISTS equipo (
