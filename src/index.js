@@ -16,6 +16,8 @@ import usersRoutes from './routes/users.js';
 import fightersRoutes from './routes/fighters.js';
 import peleadoresRoutes from './routes/peleadores.js';
 import uploadRoutes from './routes/upload.js';
+import utilsRoutes from './routes/utils.js';
+import eventsRoutes from './routes/events.js';
 import initSchema from './database/schema.js';
 
 dotenvModule.config();
@@ -104,6 +106,8 @@ app.use('/api', usersRoutes);
 app.use('/api', fightersRoutes);
 app.use('/api', peleadoresRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', utilsRoutes);
+app.use('/api', eventsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

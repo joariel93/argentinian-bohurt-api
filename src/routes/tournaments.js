@@ -31,4 +31,9 @@ router.delete('/v1/tournaments/:id', authMiddleware, roleMiddleware(ADMIN_ROLES)
 router.delete('/v1/torneo/:idTorneo/equipos/:idEquipo', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removeEquipo);
 router.put('/v1/torneo/:idTorneo/combate/:idCombate/round/:round', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.updateRound);
 
+router.get('/v1/torneo/:idTorneo/peleadores', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.getPeleadores);
+router.post('/v1/torneo/:idTorneo/peleadores', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addPeleador);
+router.delete('/v1/torneo/:idTorneo/peleadores/:idUsuario', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removePeleador);
+router.delete('/v1/torneo/:idTorneo/equipo/:idEquipo/peleador/:idUsuario', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removePeleadorDeEquipo);
+
 export default router;

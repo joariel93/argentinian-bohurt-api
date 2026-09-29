@@ -196,32 +196,107 @@ const createTables = async () => {
     FOREIGN KEY (id_genero) REFERENCES genero(id_genero)
   )`);
 
-  await db.run(`CREATE TABLE IF NOT EXISTS torneo (
-    id_torneo TEXT PRIMARY KEY,
+  await db.run(`CREATE TABLE IF NOT EXISTS evento (
+    id_evento TEXT PRIMARY KEY,
     nombre TEXT NOT NULL,
     localizacion TEXT NOT NULL,
-    fecha_torneo TEXT NOT NULL,
+    fecha_evento TEXT NOT NULL,
     fecha_cierre_inscripcion TEXT NOT NULL,
-    id_organizador TEXT,
     id_reglamento INTEGER NOT NULL DEFAULT 1,
-    id_genero INTEGER NOT NULL DEFAULT 1,
-    id_categoria INTEGER NOT NULL DEFAULT 1,
-    id_modalidad INTEGER NOT NULL DEFAULT 1,
-    id_tipo_torneo INTEGER,
+    id_organizador TEXT,
     imagen TEXT,
     link_transmision TEXT,
-    password TEXT,
-    FOREIGN KEY (id_organizador) REFERENCES usuario(id_usuario),
+    password TEXT NOT NULL,
+    estado TEXT DEFAULT 'Pendiente',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (id_reglamento) REFERENCES reglamento(id_reglamento),
-    FOREIGN KEY (id_genero) REFERENCES genero(id_genero),
-    FOREIGN KEY (id_categoria, id_modalidad) REFERENCES categoria(id_categoria, id_modalidad),
+    FOREIGN KEY (id_organizador) REFERENCES usuario(id_usuario)
+  )`);
+
+  await db.run(`CREATE TABLE IF NOT EXISTS evento_redes_sociales (
+    id_evento TEXT NOT NULL,
+    id_red_social INTEGER NOT NULL,
+    link TEXT,
+    PRIMARY KEY (id_evento, id_red_social),
+    FOREIGN KEY (id_evento) REFERENCES evento(id_evento) ON DELETE CASCADE,
+    FOREIGN KEY (id_red_social) REFERENCES redes_sociales(id_red_social)
+  )`);
+
+  await db.run(`CREATE TABLE IF NOT EXISTS evento_clubes_invitados (
+    id_evento TEXT NOT NULL,
+    id_club TEXT,
+    nombre_club_manual TEXT,
+    email TEXT,
+    telefono TEXT,
+    FOREIGN KEY (id_evento) REFERENCES evento(id_evento) ON DELETE CASCADE,
+    FOREIGN KEY (id_club) REFERENCES club(id_club)
+  )`);
+
+  await db.run(`CREATE TABLE IF NOT EXISTS torneo (
+    id_torneo TEXT PRIMARY KEY,
+    id_evento TEXT,
+    id_modalidad INTEGER NOT NULL DEFAULT 1,
+    id_categoria INTEGER NOT NULL DEFAULT 1,
+    id_genero INTEGER NOT NULL DEFAULT 1,
+    id_tipo_torneo INTEGER,
+    password TEXT,
+    estado TEXT DEFAULT 'Pendiente',
+    FOREIGN KEY (id_evento) REFERENCES evento(id_evento) ON DELETE CASCADE,
     FOREIGN KEY (id_modalidad) REFERENCES modalidad(id_modalidad),
+    FOREIGN KEY (id_categoria, id_modalidad) REFERENCES categoria(id_categoria, id_modalidad),
+    FOREIGN KEY (id_genero) REFERENCES genero(id_genero),
     FOREIGN KEY (id_tipo_torneo) REFERENCES tipo_torneo(id_tipo_torneo)
   )`);
 
   const torneoCols = await db.all(`PRAGMA table_info(torneo)`);
-  if (!torneoCols.some((c) => c.name === 'link_transmision')) {
-    await db.run(`ALTER TABLE torneo ADD COLUMN link_transmision TEXT`);
+  if (!torneoCols.some((c) => c.name === 'id_evento')) {
+    await db.run(`ALTER TABLE torneo ADD COLUMN id_evento TEXT REFERENCES evento(id_evento)`);
+  }
+  if (!torneoCols.some((c) => c.name === 'estado')) {
+    await db.run(`ALTER TABLE torneo ADD COLUMN estado TEXT DEFAULT 'Pendiente'`);
+  }
+
+  // Migración para torneos existentes que no tenían id_evento
+  if (torneoCols.some((c) => c.name === 'nombre')) {
+    try {
+      const oldTorneos = await db.all(`SELECT * FROM torneo WHERE id_evento IS NULL`);
+      for (const t of oldTorneos) {
+        const idEvento = `evento-${t.id_torneo}`;
+        await db.run(
+          `INSERT OR IGNORE INTO evento (id_evento, nombre, localizacion, fecha_evento, fecha_cierre_inscripcion, id_reglamento, id_organizador, imagen, link_transmision, password, estado)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            idEvento,
+            t.nombre || 'Evento sin nombre',
+            t.localizacion || '',
+            t.fecha_torneo || '',
+            t.fecha_cierre_inscripcion || '',
+            t.id_reglamento || 1,
+            t.id_organizador || null,
+            t.imagen || null,
+            t.link_transmision || null,
+            t.password || 'EVENT1',
+            'Pendiente'
+          ]
+        );
+        await db.run(`UPDATE torneo SET id_evento = ? WHERE id_torneo = ?`, [idEvento, t.id_torneo]);
+      }
+
+      // Eliminar columnas redundantes de torneo
+      const redundantCols = ['nombre', 'localizacion', 'fecha_torneo', 'fecha_cierre_inscripcion', 'id_organizador', 'imagen', 'id_reglamento', 'link_transmision'];
+      for (const col of redundantCols) {
+        if (torneoCols.some((c) => c.name === col)) {
+          try {
+            await db.run(`ALTER TABLE torneo DROP COLUMN ${col}`);
+          } catch (dropErr) {
+            console.warn(`No se pudo eliminar columna ${col} de torneo:`, dropErr.message);
+          }
+        }
+      }
+    } catch (migErr) {
+      console.warn('Advertencia en migración torneo -> evento:', migErr.message);
+    }
   }
 
   await db.run(`CREATE TABLE IF NOT EXISTS organizacion_torneo (
@@ -329,14 +404,7 @@ const createTables = async () => {
     FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
   )`);
 
-  await db.run(`CREATE TABLE IF NOT EXISTS torneo_redes_sociales (
-    id_torneo TEXT NOT NULL,
-    id_red_social INTEGER NOT NULL,
-    link TEXT,
-    PRIMARY KEY (id_torneo, id_red_social),
-    FOREIGN KEY (id_torneo) REFERENCES torneo(id_torneo),
-    FOREIGN KEY (id_red_social) REFERENCES redes_sociales(id_red_social)
-  )`);
+  await db.run(`DROP TABLE IF EXISTS torneo_redes_sociales`);
 
   // ---- COMBAT TABLES ----
 
@@ -480,6 +548,59 @@ const createTables = async () => {
     PRIMARY KEY (id_torneo, id_combate, orden, round, id_usuario),
     FOREIGN KEY (id_torneo, id_combate, orden, round) REFERENCES round_combate(id_torneo, id_combate, orden, round),
     FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+  )`);
+
+  // ---- COMBATE INDIVIDUAL (DUELO / PROFIGHT) ----
+
+  await db.run(`CREATE TABLE IF NOT EXISTS torneo_peleador (
+    id_torneo TEXT NOT NULL,
+    id_usuario TEXT NOT NULL,
+    id_club TEXT NOT NULL,
+    posicion INTEGER,
+    cantidad_combates INTEGER DEFAULT 0,
+    cantidad_victorias INTEGER DEFAULT 0,
+    cantidad_derrotas INTEGER DEFAULT 0,
+    cantidad_puntos INTEGER DEFAULT 0,
+    cantidad_amarillas INTEGER DEFAULT 0,
+    descalificado INTEGER DEFAULT 0,
+    PRIMARY KEY (id_torneo, id_usuario),
+    FOREIGN KEY (id_torneo) REFERENCES torneo(id_torneo),
+    FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
+    FOREIGN KEY (id_club) REFERENCES club(id_club)
+  )`);
+
+  await db.run(`CREATE TABLE IF NOT EXISTS combate_individual (
+    id_torneo TEXT NOT NULL,
+    id_combate TEXT NOT NULL,
+    link TEXT,
+    orden INTEGER NOT NULL,
+    fase TEXT,
+    grupo TEXT,
+    ronda TEXT,
+    nivel INTEGER,
+    id_usuario_a TEXT,
+    id_usuario_b TEXT,
+    id_usuario_ganador TEXT,
+    cantidad_round_ganados_ganador INTEGER DEFAULT 0,
+    cantidad_round_ganados_perdedor INTEGER DEFAULT 0,
+    PRIMARY KEY (id_torneo, id_combate),
+    FOREIGN KEY (id_torneo) REFERENCES torneo(id_torneo),
+    FOREIGN KEY (id_usuario_a) REFERENCES usuario(id_usuario),
+    FOREIGN KEY (id_usuario_b) REFERENCES usuario(id_usuario),
+    FOREIGN KEY (id_usuario_ganador) REFERENCES usuario(id_usuario)
+  )`);
+
+  await db.run(`CREATE TABLE IF NOT EXISTS round_combate_individual (
+    id_torneo TEXT NOT NULL,
+    id_combate TEXT NOT NULL,
+    orden INTEGER NOT NULL,
+    round INTEGER NOT NULL,
+    id_usuario_ganador TEXT,
+    puntos_ganador INTEGER DEFAULT 0,
+    puntos_perdedor INTEGER DEFAULT 0,
+    PRIMARY KEY (id_torneo, id_combate, orden, round),
+    FOREIGN KEY (id_torneo, id_combate) REFERENCES combate_individual(id_torneo, id_combate),
+    FOREIGN KEY (id_usuario_ganador) REFERENCES usuario(id_usuario)
   )`);
 
   // ---- APP-SPECIFIC TABLES ----

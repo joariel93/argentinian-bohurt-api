@@ -66,6 +66,7 @@ const tournamentsController = {
     const t = await db.get(
       `SELECT t.id_torneo, t.nombre, t.fecha_torneo AS fechaTorneo, t.fecha_cierre_inscripcion AS fechaCierreInscripcion,
               t.localizacion, t.imagen, t.link_transmision AS linkTransmision, t.id_tipo_torneo AS idTipoTorneo,
+              t.id_modalidad AS idModalidad,
               m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
               tt.nombre AS tipoTorneo
        FROM torneo t
@@ -104,8 +105,58 @@ const tournamentsController = {
       ),
     ]);
 
+    let peleadoresIndividuales = [];
+    if ([2, 3].includes(t.idModalidad)) {
+      const rows = await db.all(
+        `SELECT tp.id_usuario AS idUsuario, tp.id_club AS idClub,
+                u.nombre, u.apellido,
+                c.nombre AS clubNombre,
+                c.id_color1, c.id_color2, c.id_color3,
+                tp.posicion, tp.cantidad_combates AS cantidadCombates,
+                tp.cantidad_victorias AS cantidadVictorias,
+                tp.cantidad_derrotas AS cantidadDerrotas,
+                tp.cantidad_puntos AS cantidadPuntos,
+                tp.cantidad_amarillas AS cantidadAmarillas,
+                tp.descalificado
+         FROM torneo_peleador tp
+         JOIN usuario u ON tp.id_usuario = u.id_usuario
+         JOIN club c ON tp.id_club = c.id_club
+         WHERE tp.id_torneo = ?
+         ORDER BY u.apellido, u.nombre`,
+        [tournamentId]
+      );
+
+      const coloresIds = [...new Set(rows.flatMap((r) => [r.id_color1, r.id_color2, r.id_color3]))];
+      const colores = coloresIds.length
+        ? await db.all(
+            `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
+            coloresIds
+          )
+        : [];
+      const coloresMap = new Map(colores.map((c) => [c.id, c]));
+
+      peleadoresIndividuales = rows.map((r) => ({
+        idUsuario: r.idUsuario,
+        nombre: r.nombre,
+        apellido: r.apellido,
+        idClub: r.idClub,
+        clubNombre: r.clubNombre,
+        clubColores: [r.id_color1, r.id_color2, r.id_color3]
+          .map((id) => coloresMap.get(id))
+          .filter(Boolean),
+        posicion: r.posicion,
+        cantidadCombates: r.cantidadCombates || 0,
+        cantidadVictorias: r.cantidadVictorias || 0,
+        cantidadDerrotas: r.cantidadDerrotas || 0,
+        cantidadPuntos: r.cantidadPuntos || 0,
+        cantidadAmarillas: r.cantidadAmarillas || 0,
+        descalificado: !!r.descalificado,
+      }));
+    }
+
     res.json({
       id: t.id_torneo,
+      idModalidad: t.idModalidad,
       nombre: t.nombre,
       fechaTorneo: t.fechaTorneo,
       fechaCierreInscripcion: t.fechaCierreInscripcion,
@@ -120,6 +171,7 @@ const tournamentsController = {
       redesSociales,
       clubesInvitados: clubs,
       campeon: campeon ? { id: campeon.id, nombre: campeon.nombre, logo: campeon.logo } : null,
+      peleadoresIndividuales,
     });
   },
 
@@ -138,7 +190,7 @@ const tournamentsController = {
     );
     if (!t) return res.status(404).json({ error: 'Torneo no encontrado' });
 
-    const [clubs, redesSociales] = await Promise.all([
+    const [clubs, redesSociales, peleadoresPorEquipoRows, peleadoresIndividualesRows] = await Promise.all([
       db.all(
         `SELECT DISTINCT c.id_club AS id, c.nombre
          FROM club c
@@ -148,7 +200,82 @@ const tournamentsController = {
         [id]
       ),
       getRedesSocialesTorneoAdmin(id),
+      db.all(
+        `SELECT te.id_equipo AS idEquipo, u.id_usuario AS idUsuario, u.nombre, u.apellido,
+                tep.numero_peleador AS numeroPeleador, tep.cantidad_amarillas AS cantidadAmarillas,
+                tep.descalificado
+         FROM torneo_equipo te
+         JOIN torneo_equipo_peleador tep ON tep.id_torneo = te.id_torneo AND tep.id_equipo = te.id_equipo
+         JOIN usuario u ON tep.id_usuario = u.id_usuario
+         WHERE te.id_torneo = ?
+         ORDER BY te.id_equipo, tep.numero_peleador`,
+        [id]
+      ),
+      db.all(
+        `SELECT tp.id_usuario AS idUsuario, tp.id_club AS idClub,
+                u.nombre, u.apellido,
+                c.nombre AS clubNombre,
+                c.id_color1, c.id_color2, c.id_color3,
+                tp.posicion, tp.cantidad_combates AS cantidadCombates,
+                tp.cantidad_victorias AS cantidadVictorias,
+                tp.cantidad_derrotas AS cantidadDerrotas,
+                tp.cantidad_puntos AS cantidadPuntos,
+                tp.cantidad_amarillas AS cantidadAmarillas,
+                tp.descalificado
+         FROM torneo_peleador tp
+         JOIN usuario u ON tp.id_usuario = u.id_usuario
+         JOIN club c ON tp.id_club = c.id_club
+         WHERE tp.id_torneo = ?
+         ORDER BY u.apellido, u.nombre`,
+        [id]
+      ),
     ]);
+
+    // Agrupar peleadores por equipo
+    const peleadoresPorEquipoMap = new Map();
+    for (const p of peleadoresPorEquipoRows) {
+      if (!peleadoresPorEquipoMap.has(p.idEquipo)) peleadoresPorEquipoMap.set(p.idEquipo, []);
+      peleadoresPorEquipoMap.get(p.idEquipo).push({
+        id: p.idUsuario,
+        nombre: p.nombre,
+        apellido: p.apellido,
+        numeroPeleador: p.numeroPeleador,
+        cantidadAmarillas: p.cantidadAmarillas || 0,
+        descalificado: !!p.descalificado,
+      });
+    }
+    const peleadoresPorEquipo = [...peleadoresPorEquipoMap.entries()].map(([idEquipo, peleadores]) => ({
+      idEquipo,
+      peleadores,
+    }));
+
+    // Colores de los clubes de los peleadores individuales
+    const coloresIds = [...new Set(peleadoresIndividualesRows.flatMap((r) => [r.id_color1, r.id_color2, r.id_color3]))];
+    const colores = coloresIds.length
+      ? await db.all(
+          `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
+          coloresIds
+        )
+      : [];
+    const coloresMap = new Map(colores.map((c) => [c.id, c]));
+
+    const peleadoresIndividuales = peleadoresIndividualesRows.map((r) => ({
+      idUsuario: r.idUsuario,
+      nombre: r.nombre,
+      apellido: r.apellido,
+      idClub: r.idClub,
+      clubNombre: r.clubNombre,
+      clubColores: [r.id_color1, r.id_color2, r.id_color3]
+        .map((id) => coloresMap.get(id))
+        .filter(Boolean),
+      posicion: r.posicion,
+      cantidadCombates: r.cantidadCombates || 0,
+      cantidadVictorias: r.cantidadVictorias || 0,
+      cantidadDerrotas: r.cantidadDerrotas || 0,
+      cantidadPuntos: r.cantidadPuntos || 0,
+      cantidadAmarillas: r.cantidadAmarillas || 0,
+      descalificado: !!r.descalificado,
+    }));
 
     res.json({
       id: t.id_torneo,
@@ -167,6 +294,8 @@ const tournamentsController = {
       idTipoTorneo: t.idTipoTorneo,
       redesSociales,
       clubesInvitados: clubs,
+      peleadoresPorEquipo,
+      peleadoresIndividuales,
     });
   },
 
@@ -308,6 +437,9 @@ const tournamentsController = {
       await trx.run(`DELETE FROM round_combate WHERE id_torneo = ?`, [id]);
       await trx.run(`DELETE FROM combate WHERE id_torneo = ?`, [id]);
       await trx.run(`DELETE FROM organizacion_torneo WHERE id_torneo = ?`, [id]);
+      await trx.run(`DELETE FROM round_combate_individual WHERE id_torneo = ?`, [id]);
+      await trx.run(`DELETE FROM combate_individual WHERE id_torneo = ?`, [id]);
+      await trx.run(`DELETE FROM torneo_peleador WHERE id_torneo = ?`, [id]);
       await trx.run(`DELETE FROM torneo WHERE id_torneo = ?`, [id]);
     });
 
@@ -772,6 +904,150 @@ const tournamentsController = {
       console.error('Error en updateRound:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
+  },
+
+  getPeleadores: async (req, res) => {
+    const { idTorneo } = req.params;
+
+    const torneo = await db.get(
+      `SELECT id_torneo, id_modalidad AS idModalidad FROM torneo WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
+
+    if (![2, 3].includes(torneo.idModalidad)) {
+      return res.status(400).json({ error: 'Este endpoint aplica solo a torneos Duelo/Profight' });
+    }
+
+    const rows = await db.all(
+      `SELECT tp.id_usuario AS idUsuario, tp.id_club AS idClub,
+              u.nombre, u.apellido,
+              c.nombre AS clubNombre,
+              c.id_color1, c.id_color2, c.id_color3,
+              tp.posicion, tp.cantidad_combates AS cantidadCombates,
+              tp.cantidad_victorias AS cantidadVictorias,
+              tp.cantidad_derrotas AS cantidadDerrotas,
+              tp.cantidad_puntos AS cantidadPuntos,
+              tp.cantidad_amarillas AS cantidadAmarillas,
+              tp.descalificado
+       FROM torneo_peleador tp
+       JOIN usuario u ON tp.id_usuario = u.id_usuario
+       JOIN club c ON tp.id_club = c.id_club
+       WHERE tp.id_torneo = ?
+       ORDER BY u.apellido, u.nombre`,
+      [idTorneo]
+    );
+
+    const coloresIds = [...new Set(rows.flatMap((r) => [r.id_color1, r.id_color2, r.id_color3]))];
+    const colores = coloresIds.length
+      ? await db.all(
+          `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
+          coloresIds
+        )
+      : [];
+    const coloresMap = new Map(colores.map((c) => [c.id, c]));
+
+    const peleadores = rows.map((r) => ({
+      idUsuario: r.idUsuario,
+      nombre: r.nombre,
+      apellido: r.apellido,
+      idClub: r.idClub,
+      clubNombre: r.clubNombre,
+      clubColores: [r.id_color1, r.id_color2, r.id_color3]
+        .map((id) => coloresMap.get(id))
+        .filter(Boolean),
+      posicion: r.posicion,
+      cantidadCombates: r.cantidadCombates || 0,
+      cantidadVictorias: r.cantidadVictorias || 0,
+      cantidadDerrotas: r.cantidadDerrotas || 0,
+      cantidadPuntos: r.cantidadPuntos || 0,
+      cantidadAmarillas: r.cantidadAmarillas || 0,
+      descalificado: !!r.descalificado,
+    }));
+
+    res.json(peleadores);
+  },
+
+  addPeleador: async (req, res) => {
+    const { idTorneo } = req.params;
+    const { idUsuario, idClub } = req.body;
+
+    if (!idUsuario || !idClub) {
+      return res.status(400).json({ error: 'idUsuario e idClub son requeridos' });
+    }
+
+    const torneo = await db.get(
+      `SELECT id_torneo, id_modalidad AS idModalidad FROM torneo WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
+    if (![2, 3].includes(torneo.idModalidad)) {
+      return res.status(400).json({ error: 'Este endpoint aplica solo a torneos Duelo/Profight' });
+    }
+
+    const peleador = await db.get(
+      `SELECT id_usuario, id_tipo_usuario FROM usuario WHERE id_usuario = ?`,
+      [idUsuario]
+    );
+    if (!peleador) return res.status(404).json({ error: 'Peleador no encontrado' });
+    if (peleador.id_tipo_usuario !== 4) {
+      return res.status(400).json({ error: 'El usuario debe ser de tipo Luchador' });
+    }
+
+    const club = await db.get(`SELECT id_club FROM club WHERE id_club = ?`, [idClub]);
+    if (!club) return res.status(404).json({ error: 'Club no encontrado' });
+
+    try {
+      await db.run(
+        `INSERT INTO torneo_peleador (id_torneo, id_usuario, id_club, posicion, cantidad_combates,
+                                     cantidad_victorias, cantidad_derrotas, cantidad_puntos,
+                                     cantidad_amarillas, descalificado)
+         VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, 0)`,
+        [idTorneo, idUsuario, idClub]
+      );
+    } catch (err) {
+      if (String(err.message).includes('UNIQUE')) {
+        return res.status(409).json({ error: 'El peleador ya está inscripto en este torneo' });
+      }
+      throw err;
+    }
+
+    res.status(201).json({ message: 'Peleador inscripto exitosamente' });
+  },
+
+  removePeleador: async (req, res) => {
+    const { idTorneo, idUsuario } = req.params;
+
+    const result = await db.run(
+      `DELETE FROM torneo_peleador WHERE id_torneo = ? AND id_usuario = ?`,
+      [idTorneo, idUsuario]
+    );
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Peleador no encontrado en este torneo' });
+    }
+
+    res.json({ message: 'Peleador removido del torneo' });
+  },
+
+  removePeleadorDeEquipo: async (req, res) => {
+    const { idTorneo, idEquipo, idUsuario } = req.params;
+
+    const result = await db.run(
+      `DELETE FROM torneo_equipo_peleador WHERE id_torneo = ? AND id_equipo = ? AND id_usuario = ?`,
+      [idTorneo, idEquipo, idUsuario]
+    );
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Peleador no encontrado en este equipo del torneo' });
+    }
+
+    await db.run(
+      `DELETE FROM torneo_luchador WHERE id_torneo = ? AND id_usuario = ?`,
+      [idTorneo, idUsuario]
+    );
+
+    res.json({ message: 'Peleador removido del equipo' });
   },
 };
 
