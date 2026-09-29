@@ -4,6 +4,29 @@ import otpService from '../services/otpService.js';
 import { decryptDni } from '../utils/dniCrypto.js';
 
 
+// SELECT base que une torneo con evento para exponer los campos que antes vivían en torneo
+const TORNEO_JOIN_EVENTO_SELECT = `
+  SELECT t.id_torneo,
+         t.id_evento,
+         t.id_modalidad,
+         t.id_categoria,
+         t.id_genero,
+         t.id_tipo_torneo,
+         t.estado,
+         t.password,
+         e.nombre,
+         e.localizacion,
+         e.fecha_evento AS fecha_torneo,
+         e.fecha_cierre_inscripcion,
+         e.imagen,
+         e.link_transmision AS link_transmision,
+         e.id_reglamento,
+         e.id_organizador
+  FROM torneo t
+  JOIN evento e ON t.id_evento = e.id_evento
+`;
+
+
 function mapIconClass(icono) {
   const map = {
     'fa-facebook-f': 'pi pi-facebook',
@@ -17,23 +40,30 @@ function mapIconClass(icono) {
   return map[icono] || 'pi pi-globe';
 }
 
-async function getRedesSocialesTorneo(idTorneo) {
+async function getRedesSocialesEventoPorIdTorneo(idTorneo) {
   const rows = await db.all(
-    `SELECT rs.nombre AS platform, trs.link AS url, rs.icono
-     FROM torneo_redes_sociales trs
-     JOIN redes_sociales rs ON trs.id_red_social = rs.id_red_social
-     WHERE trs.id_torneo = ?`,
+    `SELECT rs.nombre AS platform, ers.link AS url, rs.icono
+     FROM torneo t
+     JOIN evento_redes_sociales ers ON ers.id_evento = t.id_evento
+     JOIN redes_sociales rs ON ers.id_red_social = rs.id_red_social
+     WHERE t.id_torneo = ?`,
     [idTorneo]
   );
   return rows.map((r) => ({ platform: r.platform, url: r.url || '', iconClass: mapIconClass(r.icono) }));
 }
 
+async function getRedesSocialesTorneo(idTorneo) {
+  // DEPRECATED: las redes sociales ahora viven en evento_redes_sociales.
+  return getRedesSocialesEventoPorIdTorneo(idTorneo);
+}
+
 async function getRedesSocialesTorneoAdmin(idTorneo) {
   const rows = await db.all(
-    `SELECT rs.id_red_social AS idRedSocial, trs.link
-     FROM torneo_redes_sociales trs
-     JOIN redes_sociales rs ON trs.id_red_social = rs.id_red_social
-     WHERE trs.id_torneo = ?`,
+    `SELECT rs.id_red_social AS idRedSocial, ers.link
+     FROM torneo t
+     JOIN evento_redes_sociales ers ON ers.id_evento = t.id_evento
+     JOIN redes_sociales rs ON ers.id_red_social = rs.id_red_social
+     WHERE t.id_torneo = ?`,
     [idTorneo]
   );
   return rows.map((r) => ({ idRedSocial: r.idRedSocial, link: r.link || '' }));
@@ -42,34 +72,36 @@ async function getRedesSocialesTorneoAdmin(idTorneo) {
 const tournamentsController = {
   getAll: async (req, res) => {
     const rows = await db.all(
-      `SELECT t.id_torneo AS id, t.nombre, t.fecha_torneo AS fechaTorneo,
-              t.fecha_cierre_inscripcion AS fechaCierreInscripcion,
-              t.localizacion, t.imagen, t.link_transmision AS linkTransmision,
-              m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
-              (SELECT COUNT(*) FROM torneo_equipo te WHERE te.id_torneo = t.id_torneo) AS equiposInscritos,
-              CASE
-                WHEN t.fecha_cierre_inscripcion > date('now') THEN 'Inscripciones abiertas'
-                WHEN t.fecha_torneo > date('now') THEN 'Inscripciones cerradas'
-                ELSE 'Finalizado'
-              END AS estado
-       FROM torneo t
+      `${TORNEO_JOIN_EVENTO_SELECT},
+              m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria
        JOIN modalidad m ON t.id_modalidad = m.id_modalidad
        JOIN genero g ON t.id_genero = g.id_genero
        JOIN categoria c ON t.id_categoria = c.id_categoria AND t.id_modalidad = c.id_modalidad
-       ORDER BY t.fecha_torneo ASC`
+       ORDER BY e.fecha_evento ASC`
     );
-    res.json(rows);
+    res.json(rows.map((r) => ({
+      id: r.id_torneo,
+      idEvento: r.id_evento,
+      nombre: r.nombre,
+      fechaTorneo: r.fecha_torneo,
+      fechaCierreInscripcion: r.fecha_cierre_inscripcion,
+      localizacion: r.localizacion,
+      imagen: r.imagen,
+      linkTransmision: r.link_transmision,
+      modalidad: r.modalidad,
+      sexo: r.sexo,
+      categoria: r.categoria,
+      equiposInscritos: 0,
+      estado: r.estado,
+    })));
   },
 
   getInfo: async (req, res) => {
     const { tournamentId } = req.params;
     const t = await db.get(
-      `SELECT t.id_torneo, t.nombre, t.fecha_torneo AS fechaTorneo, t.fecha_cierre_inscripcion AS fechaCierreInscripcion,
-              t.localizacion, t.imagen, t.link_transmision AS linkTransmision, t.id_tipo_torneo AS idTipoTorneo,
-              t.id_modalidad AS idModalidad,
+      `${TORNEO_JOIN_EVENTO_SELECT},
               m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
               tt.nombre AS tipoTorneo
-       FROM torneo t
        JOIN modalidad m ON t.id_modalidad = m.id_modalidad
        JOIN genero g ON t.id_genero = g.id_genero
        JOIN categoria c ON t.id_categoria = c.id_categoria AND t.id_modalidad = c.id_modalidad
@@ -79,7 +111,7 @@ const tournamentsController = {
     );
     if (!t) return res.status(404).json({ error: 'Torneo no encontrado' });
 
-    const [clubs, reglamento, redesSociales, campeon] = await Promise.all([
+    const [clubs, reglamento, campeon] = await Promise.all([
       db.all(
         `SELECT DISTINCT c.id_club AS id, c.nombre
          FROM club c
@@ -91,22 +123,24 @@ const tournamentsController = {
       db.get(
         `SELECT r.nombre, r.link
          FROM reglamento r
-         JOIN torneo t ON t.id_reglamento = r.id_reglamento
-         WHERE t.id_torneo = ?`,
-        [tournamentId]
+         JOIN evento e ON e.id_reglamento = r.id_reglamento
+         WHERE e.id_evento = ?`,
+        [t.id_evento]
       ),
-      getRedesSocialesTorneo(tournamentId),
       db.get(
-        `SELECT te.id_equipo AS id, e.nombre, e.logo
+        `SELECT te.id_equipo AS id, eq.nombre, eq.logo
          FROM torneo_equipo te
-         JOIN equipo e ON te.id_equipo = e.id_equipo
+         JOIN equipo eq ON te.id_equipo = eq.id_equipo
          WHERE te.id_torneo = ? AND te.posicion = 1`,
         [tournamentId]
       ),
     ]);
 
+    // Redes sociales ahora vienen del evento padre (la tabla torneo_redes_sociales fue eliminada)
+    const redesSociales = await getRedesSocialesEventoPorIdTorneo(tournamentId);
+
     let peleadoresIndividuales = [];
-    if ([2, 3].includes(t.idModalidad)) {
+    if ([2, 3].includes(t.id_modalidad)) {
       const rows = await db.all(
         `SELECT tp.id_usuario AS idUsuario, tp.id_club AS idClub,
                 u.nombre, u.apellido,
@@ -156,13 +190,17 @@ const tournamentsController = {
 
     res.json({
       id: t.id_torneo,
-      idModalidad: t.idModalidad,
+      idEvento: t.id_evento,
+      idModalidad: t.id_modalidad,
+      idGenero: t.id_genero,
+      idCategoria: t.id_categoria,
+      idTipoTorneo: t.id_tipo_torneo,
       nombre: t.nombre,
-      fechaTorneo: t.fechaTorneo,
-      fechaCierreInscripcion: t.fechaCierreInscripcion,
+      fechaTorneo: t.fecha_torneo,
+      fechaCierreInscripcion: t.fecha_cierre_inscripcion,
       localizacion: t.localizacion,
       imagen: t.imagen,
-      idTipoTorneo: t.idTipoTorneo,
+      linkTransmision: t.link_transmision,
       modalidad: t.modalidad,
       sexo: t.sexo,
       categoria: t.categoria,
@@ -179,13 +217,7 @@ const tournamentsController = {
     const { id } = req.params;
 
     const t = await db.get(
-      `SELECT id_torneo, nombre, fecha_torneo AS fechaTorneo, fecha_cierre_inscripcion AS fechaCierreInscripcion,
-              localizacion, imagen, link_transmision AS linkTransmision, password,
-              id_organizador AS idOrganizador, id_reglamento AS idReglamento,
-              id_genero AS idGenero, id_categoria AS idCategoria,
-              id_modalidad AS idModalidad, id_tipo_torneo AS idTipoTorneo
-       FROM torneo
-       WHERE id_torneo = ?`,
+      `${TORNEO_JOIN_EVENTO_SELECT}`,
       [id]
     );
     if (!t) return res.status(404).json({ error: 'Torneo no encontrado' });
@@ -279,19 +311,20 @@ const tournamentsController = {
 
     res.json({
       id: t.id_torneo,
+      idEvento: t.id_evento,
       nombre: t.nombre,
-      fechaTorneo: t.fechaTorneo,
-      fechaCierreInscripcion: t.fechaCierreInscripcion,
+      fechaTorneo: t.fecha_torneo,
+      fechaCierreInscripcion: t.fecha_cierre_inscripcion,
       localizacion: t.localizacion,
       imagen: t.imagen,
-      linkTransmision: t.linkTransmision,
+      linkTransmision: t.link_transmision,
       password: '',
-      idOrganizador: t.idOrganizador,
-      idReglamento: t.idReglamento,
-      idGenero: t.idGenero,
-      idCategoria: t.idCategoria,
-      idModalidad: t.idModalidad,
-      idTipoTorneo: t.idTipoTorneo,
+      idOrganizador: t.id_organizador,
+      idReglamento: t.id_reglamento,
+      idGenero: t.id_genero,
+      idCategoria: t.id_categoria,
+      idModalidad: t.id_modalidad,
+      idTipoTorneo: t.id_tipo_torneo,
       redesSociales,
       clubesInvitados: clubs,
       peleadoresPorEquipo,
@@ -315,13 +348,17 @@ const tournamentsController = {
   },
 
   submit: async (req, res) => {
-    const { nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
-      idOrganizador, idReglamento, idGenero, idCategoria, idModalidad,
-      idTipoTorneo, imagen, linkTransmision, redesSociales } = req.body;
+    const { idEvento, idGenero, idCategoria, idModalidad, idTipoTorneo, password } = req.body;
 
-    if (!nombre || !localizacion || !fechaTorneo || !fechaCierreInscripcion) {
-      return res.status(400).json({ error: 'nombre, localizacion, fechaTorneo y fechaCierreInscripcion son requeridos' });
+    if (!idEvento) {
+      return res.status(400).json({ error: 'idEvento es requerido (los datos comunes viven en el evento padre)' });
     }
+    if (!idGenero || !idCategoria || !idModalidad) {
+      return res.status(400).json({ error: 'idGenero, idCategoria y idModalidad son requeridos' });
+    }
+
+    const evento = await db.get(`SELECT id_evento FROM evento WHERE id_evento = ?`, [idEvento]);
+    if (!evento) return res.status(404).json({ error: 'Evento no encontrado' });
 
     const normalizeFk = (val) => {
       if (val === undefined || val === null) return null;
@@ -329,30 +366,20 @@ const tournamentsController = {
       return val;
     };
 
-    const otp = otpService.generate();
+    const otp = password || otpService.generate();
     const otpHash = otpService.hash(otp);
     const idTorneo = uuidv4();
 
-    await db.transaction(async (trx) => {
-      await trx.run(
-        `INSERT INTO torneo (id_torneo, nombre, localizacion, fecha_torneo, fecha_cierre_inscripcion,
-                             id_organizador, id_reglamento, id_genero, id_categoria, id_modalidad,
-                             id_tipo_torneo, imagen, link_transmision, password)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [idTorneo, nombre, localizacion, fechaTorneo, fechaCierreInscripcion,
-          idOrganizador || null, idReglamento || 1, idGenero || 1, idCategoria || 1, idModalidad || 1,
-          normalizeFk(idTipoTorneo), imagen || null, linkTransmision || null, otpHash]
-      );
-
-      if (Array.isArray(redesSociales)) {
-        for (const sn of redesSociales) {
-          await trx.run(
-            `INSERT OR REPLACE INTO torneo_redes_sociales (id_torneo, id_red_social, link) VALUES (?, ?, ?)`,
-            [idTorneo, sn.idRedSocial, sn.link || null]
-          );
-        }
-      }
-    });
+    await db.run(
+      `INSERT INTO torneo (id_torneo, id_evento, id_modalidad, id_categoria, id_genero, id_tipo_torneo, password, estado)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'Pendiente')`,
+      [idTorneo, idEvento,
+        normalizeFk(idModalidad) || 1,
+        normalizeFk(idCategoria) || 1,
+        normalizeFk(idGenero) || 1,
+        normalizeFk(idTipoTorneo),
+        otpHash]
+    );
 
     res.status(201).json({ id: idTorneo, password: otp, message: 'Torneo creado exitosamente' });
   },
@@ -363,21 +390,13 @@ const tournamentsController = {
     if (!existing) return res.status(404).json({ error: 'Torneo no encontrado' });
 
     const updates = req.body;
-    const { redesSociales } = updates;
     const fieldMap = {
-      fechaTorneo: 'fecha_torneo',
-      fechaCierreInscripcion: 'fecha_cierre_inscripcion',
-      idOrganizador: 'id_organizador',
-      idReglamento: 'id_reglamento',
       idGenero: 'id_genero',
       idCategoria: 'id_categoria',
       idModalidad: 'id_modalidad',
       idTipoTorneo: 'id_tipo_torneo',
-      linkTransmision: 'link_transmision',
     };
-    const allowedFields = ['nombre', 'localizacion', 'fecha_torneo', 'fecha_cierre_inscripcion',
-      'id_organizador', 'id_reglamento', 'id_genero', 'id_categoria', 'id_modalidad',
-      'id_tipo_torneo', 'imagen', 'link_transmision', 'password'];
+    const allowedFields = ['id_genero', 'id_categoria', 'id_modalidad', 'id_tipo_torneo', 'password', 'estado'];
     const fields = [];
     const values = [];
 
@@ -399,15 +418,8 @@ const tournamentsController = {
       await db.run(`UPDATE torneo SET ${fields.join(', ')} WHERE id_torneo = ?`, values);
     }
 
-    if (Array.isArray(redesSociales)) {
-      await db.run(`DELETE FROM torneo_redes_sociales WHERE id_torneo = ?`, [id]);
-      for (const sn of redesSociales) {
-        await db.run(
-          `INSERT OR REPLACE INTO torneo_redes_sociales (id_torneo, id_red_social, link) VALUES (?, ?, ?)`,
-          [id, sn.idRedSocial, sn.link || null]
-        );
-      }
-    }
+    // Las redes sociales y datos comunes (nombre, fechas, localizacion, etc.)
+    // se editan en el evento padre a través de /api/v1/events/:id.
 
     res.json({ message: 'Torneo actualizado exitosamente' });
   },
@@ -463,8 +475,9 @@ const tournamentsController = {
     const { idTorneo, idEquipo } = req.params;
 
     const torneo = await db.get(
-      `SELECT id_torneo, nombre, fecha_torneo AS fechaTorneo, localizacion, imagen
-       FROM torneo WHERE id_torneo = ?`,
+      `SELECT t.id_torneo, e.nombre, e.fecha_evento AS fechaTorneo, e.localizacion, e.imagen
+       FROM torneo t JOIN evento e ON t.id_evento = e.id_evento
+       WHERE t.id_torneo = ?`,
       [idTorneo]
     );
     if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
@@ -755,12 +768,7 @@ const tournamentsController = {
       const { id } = req.params;
 
       const torneo = await db.get(
-        `SELECT id_torneo, nombre, fecha_torneo AS fechaTorneo, fecha_cierre_inscripcion AS fechaCierreInscripcion,
-                localizacion, imagen, link_transmision AS linkTransmision,
-                id_organizador AS idOrganizador, id_reglamento AS idReglamento,
-                id_genero AS idGenero, id_categoria AS idCategoria,
-                id_modalidad AS idModalidad, id_tipo_torneo AS idTipoTorneo
-         FROM torneo WHERE id_torneo = ?`,
+        `${TORNEO_JOIN_EVENTO_SELECT}`,
         [id]
       );
       if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
@@ -865,7 +873,20 @@ const tournamentsController = {
 
       res.json({
         torneo: {
-          ...torneo,
+          id: torneo.id_torneo,
+          idEvento: torneo.id_evento,
+          idModalidad: torneo.id_modalidad,
+          idGenero: torneo.id_genero,
+          idCategoria: torneo.id_categoria,
+          idTipoTorneo: torneo.id_tipo_torneo,
+          nombre: torneo.nombre,
+          fechaTorneo: torneo.fecha_torneo,
+          fechaCierreInscripcion: torneo.fecha_cierre_inscripcion,
+          localizacion: torneo.localizacion,
+          imagen: torneo.imagen,
+          linkTransmision: torneo.link_transmision,
+          idOrganizador: torneo.id_organizador,
+          idReglamento: torneo.id_reglamento,
           redesSociales,
         },
         equipos: equiposConPeleadores,
