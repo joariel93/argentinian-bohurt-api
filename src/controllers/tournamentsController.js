@@ -395,8 +395,9 @@ const tournamentsController = {
       idCategoria: 'id_categoria',
       idModalidad: 'id_modalidad',
       idTipoTorneo: 'id_tipo_torneo',
+      idEvento: 'id_evento',
     };
-    const allowedFields = ['id_genero', 'id_categoria', 'id_modalidad', 'id_tipo_torneo', 'password', 'estado'];
+    const allowedFields = ['id_evento', 'id_genero', 'id_categoria', 'id_modalidad', 'id_tipo_torneo', 'password', 'estado'];
     const fields = [];
     const values = [];
 
