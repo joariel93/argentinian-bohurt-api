@@ -144,7 +144,7 @@ const eventsController = {
         `SELECT t.id_torneo AS id, t.id_modalidad AS idModalidad,
                 t.id_categoria AS idCategoria, t.id_genero AS idGenero,
                 t.id_tipo_torneo AS idTipoTorneo,
-                t.password, t.estado
+                t.estado
          FROM torneo t
          WHERE t.id_evento = ?`,
         [id]
@@ -156,7 +156,9 @@ const eventsController = {
       password: '',
       redesSociales,
       clubesInvitados,
-      torneos,
+      // Por seguridad, no devolvemos el password del torneo (es un hash bcrypt).
+      // El OTP plano solo se muestra al crear/regenerar el torneo.
+      torneos: torneos.map((t) => ({ ...t, password: '' })),
     });
   },
 
@@ -287,18 +289,56 @@ const eventsController = {
       }
 
       if (Array.isArray(torneos)) {
+        // 1. Detectar ids que ya están en el evento y eliminar los que ya no están.
+        const idsEnRequest = torneos.filter((t) => t.id).map((t) => t.id);
+        const idsActualesRows = await trx.all(
+          `SELECT id_torneo FROM torneo WHERE id_evento = ?`,
+          [id]
+        );
+        const idsActuales = idsActualesRows.map((r) => r.id_torneo);
+        const idsAEliminar = idsActuales.filter((idt) => !idsEnRequest.includes(idt));
+        for (const idt of idsAEliminar) {
+          await trx.run(`DELETE FROM round_peleador WHERE id_torneo = ?`, [idt]);
+          await trx.run(`DELETE FROM round_combate WHERE id_torneo = ?`, [idt]);
+          await trx.run(`DELETE FROM combate WHERE id_torneo = ?`, [idt]);
+          await trx.run(`DELETE FROM torneo_equipo_peleador WHERE id_torneo = ?`, [idt]);
+          await trx.run(`DELETE FROM torneo_equipo WHERE id_torneo = ?`, [idt]);
+          await trx.run(`DELETE FROM torneo_peleador WHERE id_torneo = ?`, [idt]);
+          await trx.run(`DELETE FROM torneo WHERE id_torneo = ?`, [idt]);
+        }
+
+        // 2. Upsert de cada torneo del array.
         for (const t of torneos) {
-          if (!t.id) continue;
-          const fieldsT = [];
-          const valuesT = [];
-          if (t.idModalidad !== undefined) { fieldsT.push('id_modalidad = ?'); valuesT.push(t.idModalidad); }
-          if (t.idCategoria !== undefined) { fieldsT.push('id_categoria = ?'); valuesT.push(t.idCategoria); }
-          if (t.idGenero !== undefined) { fieldsT.push('id_genero = ?'); valuesT.push(t.idGenero); }
-          if (t.idTipoTorneo !== undefined) { fieldsT.push('id_tipo_torneo = ?'); valuesT.push(t.idTipoTorneo); }
-          if (t.password) { fieldsT.push('password = ?'); valuesT.push(otpService.hash(t.password)); }
-          if (fieldsT.length > 0) {
-            valuesT.push(t.id);
-            await trx.run(`UPDATE torneo SET ${fieldsT.join(', ')} WHERE id_torneo = ?`, valuesT);
+          if (t.id) {
+            // Update
+            const fieldsT = [];
+            const valuesT = [];
+            if (t.idModalidad !== undefined) { fieldsT.push('id_modalidad = ?'); valuesT.push(t.idModalidad); }
+            if (t.idCategoria !== undefined) { fieldsT.push('id_categoria = ?'); valuesT.push(t.idCategoria); }
+            if (t.idGenero !== undefined) { fieldsT.push('id_genero = ?'); valuesT.push(t.idGenero); }
+            if (t.idTipoTorneo !== undefined) { fieldsT.push('id_tipo_torneo = ?'); valuesT.push(t.idTipoTorneo); }
+            if (t.password) { fieldsT.push('password = ?'); valuesT.push(otpService.hash(t.password)); }
+            if (fieldsT.length > 0) {
+              valuesT.push(t.id);
+              await trx.run(`UPDATE torneo SET ${fieldsT.join(', ')} WHERE id_torneo = ?`, valuesT);
+            }
+          } else {
+            // Create
+            const idTorneo = uuidv4();
+            const torneoPassword = t.password || otpService.generate();
+            await trx.run(
+              `INSERT INTO torneo (id_torneo, id_evento, id_modalidad, id_categoria, id_genero, id_tipo_torneo, password, estado)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'Pendiente')`,
+              [
+                idTorneo,
+                id,
+                t.idModalidad || 1,
+                t.idCategoria || 1,
+                t.idGenero || 1,
+                t.idTipoTorneo || null,
+                otpService.hash(torneoPassword),
+              ]
+            );
           }
         }
       }
