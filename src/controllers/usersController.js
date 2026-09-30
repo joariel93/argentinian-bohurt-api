@@ -1,9 +1,19 @@
 import bcrypt from 'bcryptjs';
 import db from '../database/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import { encryptDni, dniHash, dniLast4 } from '../utils/dniCrypto.js';
 
 
 const SALT_ROUNDS = 10;
+
+/**
+ * Busca el club "Mercenarios" en la DB. Como el usuario lo crea manualmente desde el ABM,
+ * hacemos la búsqueda por nombre para no hardcodear un ID.
+ */
+async function findMercenariosClub() {
+  const row = await db.get(`SELECT id_club FROM club WHERE nombre = 'Mercenarios' LIMIT 1`);
+  return row?.id_club || null;
+}
 
 const validarEmail = (email) => {
   if (!email) return false;
@@ -172,6 +182,56 @@ const usersController = {
       res.json({ message: 'Usuario actualizado exitosamente' });
     } catch (error) {
       console.error('Error en update user:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  },
+
+  createUsuarioRapido: async (req, res) => {
+    try {
+      const { dni, nombre, apellido, fechaNacimiento, idClub } = req.body;
+
+      if (!dni || !nombre || !apellido || !fechaNacimiento) {
+        return res.status(400).json({ error: 'dni, nombre, apellido y fechaNacimiento son requeridos' });
+      }
+
+      const username = encryptDni(dni);
+      const existing = await db.get(
+        `SELECT id_usuario FROM usuario WHERE username = ? AND id_tipo_usuario = 4`,
+        [username]
+      );
+      if (existing) {
+        return res.status(409).json({ error: 'Ya existe un peleador con ese DNI' });
+      }
+
+      const idUsuario = uuidv4();
+      await db.run(
+        `INSERT INTO usuario (id_usuario, username, password, nombre, apellido, id_tipo_usuario,
+                             dni_hash, dni_last4)
+         VALUES (?, ?, '', ?, ?, 4, ?, ?)`,
+        [idUsuario, username, nombre, apellido, dniHash(dni), dni.slice(-4)]
+      );
+
+      // Crear fila en luchador con fecha_nacimiento.
+      await db.run(
+        `INSERT INTO luchador (id_usuario, fecha_nacimiento) VALUES (?, ?)`,
+        [idUsuario, fechaNacimiento]
+      );
+
+      // Si no se especifica club, asignar Mercenarios (si existe).
+      let finalClub = idClub;
+      if (!finalClub) {
+        finalClub = await findMercenariosClub();
+      }
+
+      res.status(201).json({
+        idUsuario,
+        nombre,
+        apellido,
+        fechaNacimiento,
+        idClub: finalClub,
+      });
+    } catch (error) {
+      console.error('Error en createUsuarioRapido:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   },

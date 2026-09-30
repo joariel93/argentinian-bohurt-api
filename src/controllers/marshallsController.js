@@ -953,6 +953,10 @@ const marshallsController = {
       const torneo = await db.get(`SELECT id_torneo FROM torneo WHERE id_torneo = ?`, [idTorneo]);
       if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
 
+      // Vincular automáticamente al club "Mercenarios" si existe.
+      const clubRow = await db.get(`SELECT id_club FROM club WHERE nombre = 'Mercenarios' LIMIT 1`);
+      const idClubMercenarios = clubRow?.id_club || null;
+
       const idEquipo = uuidv4();
       await db.transaction(async (trx) => {
         await trx.run(
@@ -965,9 +969,16 @@ const marshallsController = {
            VALUES (?, ?, NULL, 0, 0, 0, 0, 0)`,
           [idEquipo, idTorneo]
         );
+        // Vincular a Mercenarios si existe.
+        if (idClubMercenarios) {
+          await trx.run(
+            `INSERT INTO club_equipos (id_club, id_equipo) VALUES (?, ?)`,
+            [idClubMercenarios, idEquipo]
+          );
+        }
       });
 
-      res.status(201).json({ id: idEquipo, nombre, mensaje: 'Equipo coalición creado' });
+      res.status(201).json({ id: idEquipo, nombre, idClub: idClubMercenarios, mensaje: 'Equipo coalición creado' });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Error interno del servidor' });

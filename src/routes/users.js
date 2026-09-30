@@ -14,5 +14,6 @@ router.get('/v1/users/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), usersCo
 router.post('/v1/users', authMiddleware, roleMiddleware(ADMIN_ROLES), validate(createUserSchema), usersController.create);
 router.put('/v1/users/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), validate(updateUserSchema), usersController.update);
 router.delete('/v1/users/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), usersController.delete);
+router.post('/v1/users/quick', authMiddleware, roleMiddleware(ADMIN_ROLES), usersController.createUsuarioRapido);
 
 export default router;

@@ -994,8 +994,8 @@ const tournamentsController = {
     const { idTorneo } = req.params;
     const { idUsuario, idClub } = req.body;
 
-    if (!idUsuario || !idClub) {
-      return res.status(400).json({ error: 'idUsuario e idClub son requeridos' });
+    if (!idUsuario) {
+      return res.status(400).json({ error: 'idUsuario es requerido' });
     }
 
     const torneo = await db.get(
@@ -1016,8 +1016,17 @@ const tournamentsController = {
       return res.status(400).json({ error: 'El usuario debe ser de tipo Luchador' });
     }
 
-    const club = await db.get(`SELECT id_club FROM club WHERE id_club = ?`, [idClub]);
-    if (!club) return res.status(404).json({ error: 'Club no encontrado' });
+    // Si no se especifica club, asignar Mercenarios (si existe).
+    let finalClub = idClub;
+    if (!finalClub) {
+      const clubRow = await db.get(`SELECT id_club FROM club WHERE nombre = 'Mercenarios' LIMIT 1`);
+      finalClub = clubRow?.id_club;
+    }
+    if (!finalClub) {
+      return res.status(400).json({
+        error: 'Debe especificar un club o existir el club "Mercenarios"',
+      });
+    }
 
     try {
       await db.run(
@@ -1025,7 +1034,7 @@ const tournamentsController = {
                                      cantidad_victorias, cantidad_derrotas, cantidad_puntos,
                                      cantidad_amarillas, descalificado)
          VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, 0)`,
-        [idTorneo, idUsuario, idClub]
+        [idTorneo, idUsuario, finalClub]
       );
     } catch (err) {
       if (String(err.message).includes('UNIQUE')) {
@@ -1034,7 +1043,7 @@ const tournamentsController = {
       throw err;
     }
 
-    res.status(201).json({ message: 'Peleador inscripto exitosamente' });
+    res.status(201).json({ message: 'Peleador inscripto exitosamente', idClub: finalClub });
   },
 
   removePeleador: async (req, res) => {
