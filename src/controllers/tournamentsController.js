@@ -1324,8 +1324,22 @@ const tournamentsController = {
    */
   sorteoIndividual: async (req, res) => {
     const { idTorneo } = req.params;
+    const { cantidadGrupos } = req.body || {};
     const torneo = await tournamentsController.requireTorneoIndividual(req, res);
     if (!torneo) return;
+
+    // Validar que el tipo de torneo esté definido.
+    const torneoFull = await db.get(
+      `SELECT id_tipo_torneo AS idTipoTorneo FROM torneo WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    if (!torneoFull) return res.status(404).json({ error: 'Torneo no encontrado' });
+    if (torneoFull.idTipoTorneo === null) {
+      return res.status(400).json({
+        error: 'Debe definir el tipo de torneo antes de sortear',
+        code: 'TIPO_TORNEO_REQUERIDO',
+      });
+    }
 
     const inscriptos = await db.all(
       `SELECT tp.id_usuario AS idUsuario, tp.id_club AS idClub, u.nombre, u.apellido
@@ -1340,66 +1354,52 @@ const tournamentsController = {
       return res.status(400).json({ error: 'Se necesitan al menos 2 peleadores inscriptos' });
     }
 
-    // Agrupar por club
-    const gruposPorClub = new Map();
-    for (const p of inscriptos) {
-      const clave = p.idClub || '__null__';
-      if (!gruposPorClub.has(clave)) gruposPorClub.set(clave, []);
-      gruposPorClub.get(clave).push(p);
-    }
+    // Limpiar combates individuales existentes (rondas o llaves previas) antes de re-sortear.
+    await db.transaction(async (trx) => {
+      await trx.run(`DELETE FROM round_combate_individual WHERE id_torneo = ?`, [idTorneo]);
+      await trx.run(`DELETE FROM combate_individual WHERE id_torneo = ?`, [idTorneo]);
+    });
 
-    // Convertir a array y ordenar por tamaño descendente para intercalar mejor
-    const clubes = [...gruposPorClub.values()].sort((a, b) => b.length - a.length);
-
-    // Intercalado: round-robin por clubes para armar el orden final (similar a snake draft).
-    const ordenIntercalado = [];
-    let i = 0;
-    while (ordenIntercalado.length < inscriptos.length) {
-      for (const c of clubes) {
-        if (c[i]) ordenIntercalado.push(c[i]);
+    let resultado;
+    try {
+      switch (torneoFull.idTipoTorneo) {
+        case 3:
+          resultado = generarLiga(inscriptos);
+          break;
+        case 2:
+          resultado = generarEliminatoriaBracket(inscriptos);
+          break;
+        case 1: {
+          // Default sugerido: 2 grupos si hay >= 4 peleadores; sino 1 grupo.
+          const sugerido = inscriptos.length >= 4 ? 2 : 1;
+          const grupos = Number.isInteger(cantidadGrupos) && cantidadGrupos > 0 ? cantidadGrupos : sugerido;
+          if (grupos < 1 || grupos > inscriptos.length) {
+            return res.status(400).json({ error: `cantidadGrupos debe estar entre 1 y ${inscriptos.length}` });
+          }
+          resultado = generarGruposEliminatoria(inscriptos, grupos);
+          // Persistir la cantidad de grupos en organizacion_torneo.
+          await db.run(
+            `INSERT INTO organizacion_torneo (id_torneo, id_tipo_torneo, cantidad_grupos)
+             VALUES (?, ?, ?)
+             ON CONFLICT(id_torneo) DO UPDATE SET id_tipo_torneo = excluded.id_tipo_torneo, cantidad_grupos = excluded.cantidad_grupos`,
+            [idTorneo, torneoFull.idTipoTorneo, grupos]
+          );
+          break;
+        }
+        default:
+          return res.status(400).json({ error: 'Tipo de torneo inválido' });
       }
-      i++;
+    } catch (err) {
+      console.error('Error generando sorteo:', err);
+      return res.status(500).json({ error: err.message || 'Error al generar el sorteo' });
     }
-
-    // Emparejar: posición i vs posición i+1, recorriendo de a pares.
-    // Si quedan impares, el último es un bye.
-    const emparejamientos = [];
-    let tieneCrucesIntraClub = false;
-    for (let j = 0; j < ordenIntercalado.length; j += 2) {
-      const a = ordenIntercalado[j];
-      const b = ordenIntercalado[j + 1] || null;
-      if (b && a.idClub === b.idClub) tieneCrucesIntraClub = true;
-      emparejamientos.push({ a, b });
-    }
-
-    // Si quedaron cruces intra-club, intentar corregir swapping entre pares contiguos.
-    for (let j = 0; j < emparejamientos.length - 1; j++) {
-      const par1 = emparejamientos[j];
-      const par2 = emparejamientos[j + 1];
-      if (!par1.b || !par2.b) continue;
-      // Si par1 cruza intra-club pero swapping lo resuelve, intercambiar.
-      if (par1.a.idClub === par1.b.idClub && par1.a.idClub !== par2.a.idClub && par1.a.idClub !== par2.b.idClub) {
-        const tmp = par1.b;
-        emparejamientos[j] = { a: par1.a, b: par2.a };
-        emparejamientos[j + 1] = { a: tmp, b: par2.b };
-        tieneCrucesIntraClub = recalcularCruces(emparejamientos);
-      }
-    }
-
-    const combatesData = emparejamientos.map((p, idx) => ({
-      id: `combate-sorteo-${Date.now()}-${idx}`,
-      orden: idx + 1,
-      fase: 'eliminatoria',
-      ronda: 'Octavos',
-      nivel: 3,
-      idUsuarioA: p.a.idUsuario,
-      idUsuarioB: p.b ? p.b.idUsuario : null,
-    }));
 
     res.json({
-      combates: combatesData,
-      tieneCrucesIntraClub,
+      tipoTorneo: tipoTorneoNombre(torneoFull.idTipoTorneo),
+      cantidadGrupos: torneoFull.idTipoTorneo === 1 ? resultado.cantidadGrupos : undefined,
       totalPeleadores: inscriptos.length,
+      combates: resultado.combates,
+      tieneCrucesIntraClub: resultado.tieneCrucesIntraClub || false,
     });
   },
 
@@ -1473,13 +1473,288 @@ const tournamentsController = {
   },
 };
 
-// Helper que cuenta cuántos emparejamientos son intra-club (usado por sorteoIndividual).
-function recalcularCruces(emparejamientos) {
+// ════════════════════════════════════════════════════════════════════════
+// Helpers para los algoritmos de sorteo (Fase B-bis)
+// ════════════════════════════════════════════════════════════════════════
+
+function tipoTorneoNombre(id) {
+  return id === 1 ? 'grupos_eliminatoria' : id === 2 ? 'eliminatoria' : id === 3 ? 'liga' : null;
+}
+
+/**
+ * Intercala peleadores por club (snake-draft) para minimizar cruces intra-club.
+ * Devuelve un array nuevo en el orden óptimo.
+ */
+function intercalarPorClub(peleadores) {
+  const gruposPorClub = new Map();
+  for (const p of peleadores) {
+    const clave = p.idClub || '__null__';
+    if (!gruposPorClub.has(clave)) gruposPorClub.set(clave, []);
+    gruposPorClub.get(clave).push(p);
+  }
+  // Ordenar clubes por tamaño descendente para intercalar mejor.
+  const clubes = [...gruposPorClub.values()].sort((a, b) => b.length - a.length);
+
+  const orden = [];
+  let i = 0;
+  while (orden.length < peleadores.length) {
+    for (const c of clubes) {
+      if (c[i]) orden.push(c[i]);
+    }
+    i++;
+  }
+  return orden;
+}
+
+/**
+ * Cuenta cuántos emparejamientos son intra-club.
+ */
+function contarCrucesIntraClub(emparejamientos) {
   let count = 0;
   for (const p of emparejamientos) {
     if (p.b && p.a.idClub === p.b.idClub) count++;
   }
-  return count > 0;
+  return count;
+}
+
+/**
+ * Intenta reducir cruces intra-club swapping emparejamientos consecutivos.
+ */
+function reducirCruces(emparejamientos) {
+  let tiene = contarCrucesIntraClub(emparejamientos) > 0;
+  let cambios = true;
+  let iter = 0;
+  while (tiene && cambios && iter < emparejamientos.length) {
+    cambios = false;
+    for (let j = 0; j < emparejamientos.length - 1; j++) {
+      const par1 = emparejamientos[j];
+      const par2 = emparejamientos[j + 1];
+      if (!par1.b || !par2.b) continue;
+      if (par1.a.idClub === par1.b.idClub &&
+          par1.a.idClub !== par2.a.idClub &&
+          par1.a.idClub !== par2.b.idClub) {
+        const tmp = par1.b;
+        emparejamientos[j] = { a: par1.a, b: par2.a };
+        emparejamientos[j + 1] = { a: tmp, b: par2.b };
+        cambios = true;
+      }
+    }
+    tiene = contarCrucesIntraClub(emparejamientos) > 0;
+    iter++;
+  }
+  return emparejamientos;
+}
+
+/**
+ * Genera el orden de emparejamientos para una eliminatoria directa (sin byes por ahora).
+ */
+function emparejarEliminatoria(peleadores) {
+  const orden = intercalarPorClub(peleadores);
+  const emparejamientos = [];
+  for (let j = 0; j < orden.length; j += 2) {
+    const a = orden[j];
+    const b = orden[j + 1] || null;
+    emparejamientos.push({ a, b });
+  }
+  reducirCruces(emparejamientos);
+  return {
+    emparejamientos,
+    tieneCrucesIntraClub: contarCrucesIntraClub(emparejamientos) > 0,
+  };
+}
+
+/**
+ * Genera los combates de una Liga (round-robin clásico).
+ * - Si N es par: N-1 rondas, N/2 combates por ronda.
+ * - Si N es impar: N rondas, un peleador descansa por ronda (bye automático con id_usuario_b = null).
+ */
+function generarLiga(peleadores) {
+  const n = peleadores.length;
+  const esImpar = n % 2 === 1;
+  // Si N es impar, agregamos un null (bye) para que el algoritmo funcione de forma par.
+  const lista = esImpar ? [...peleadores, null] : [...peleadores];
+  const totalSlots = lista.length;
+  const rondas = totalSlots - 1;
+  const resultado = [];
+
+  // El primer elemento queda fijo, el resto rota.
+  const rotacion = [...lista];
+  for (let r = 0; r < rondas; r++) {
+    for (let i = 0; i < totalSlots / 2; i++) {
+      const a = rotacion[i];
+      const b = rotacion[totalSlots - 1 - i];
+      // Solo agregamos el combate si ambos son peleadores reales (descartar bye vs bye).
+      if (a && b) {
+        resultado.push({
+          fase: 'liga',
+          ronda: `Ronda ${r + 1}`,
+          nivel: null,
+          grupo: null,
+          idUsuarioA: a.idUsuario,
+          idUsuarioB: b.idUsuario,
+        });
+      }
+    }
+    // Rotar: mover el último elemento al segundo puesto (rotación horaria estándar).
+    rotacion.splice(1, 0, rotacion.pop());
+  }
+
+  return { combates: resultado.map((c, idx) => ({ ...c, orden: idx + 1 })), tieneCrucesIntraClub: false };
+}
+
+/**
+ * Genera los combates de una Eliminatoria directa usando el bracketTemplate (32 llaves).
+ * - Calcula el tamaño del bracket como la próxima potencia de 2 >= N.
+ * - Si N es menor al bracket size, agrega byes en los primeros slots (los de arriba del bracket).
+ * - Devuelve combates con `fase = "eliminatoria"`, `ronda` según la instancia del bracket, `nivel` según el bracket.
+ */
+function generarEliminatoriaBracket(peleadores) {
+  const n = peleadores.length;
+  const bracketSize = Math.pow(2, Math.ceil(Math.log2(n)));
+  const numByes = bracketSize - n;
+
+  // Emparejar la primera ronda con la restricción intra-club.
+  const { emparejamientos, tieneCrucesIntraClub } = emparejarEliminatoria(peleadores);
+
+  // Mapeo de cantidad de llaves a la primera ronda del bracketTemplate.
+  // Para N peleadores, la primera ronda tiene N/2 llaves (con byes donde corresponda).
+  const llavesPrimeraRonda = emparejamientos.length;
+  // Necesitamos las primeras `llavesPrimeraRonda` llaves del template (sin 3er Puesto).
+  // Pero el template tiene 32 llaves en total (16 de primera ronda). Vamos a usar las primeras.
+  const mapaBracket = {
+    1: { instancia: 'Final', nivel: 0 },
+    2: { instancia: 'Semifinal', nivel: 1 },
+    4: { instancia: 'Cuartos', nivel: 2 },
+    8: { instancia: 'Octavos', nivel: 3 },
+    16: { instancia: 'Dieciseisavos', nivel: 4 },
+  };
+  const instanciaRonda = mapaBracket[bracketSize] || { instancia: `Ronda de ${bracketSize}`, nivel: 5 };
+
+  const combates = [];
+  for (let i = 0; i < emparejamientos.length; i++) {
+    const par = emparejamientos[i];
+    // Los byes van en los primeros slots del bracket (los "mejores" sembrados).
+    const tieneBye = i < numByes && par.b === null;
+    combates.push({
+      fase: 'eliminatoria',
+      ronda: instanciaRonda.instancia,
+      nivel: instanciaRonda.nivel,
+      grupo: null,
+      idUsuarioA: par.a.idUsuario,
+      idUsuarioB: tieneBye ? null : par.b?.idUsuario || null,
+      // Marcamos que es bye para que la UI lo muestre como descanso.
+      _esBye: tieneBye,
+    });
+  }
+
+  return {
+    combates: combates.map((c, idx) => ({ ...c, orden: idx + 1 })),
+    tieneCrucesIntraClub,
+    bracketSize,
+    numByes,
+  };
+}
+
+/**
+ * Genera los combates de Grupos + Eliminatorias.
+ * 1. Reparte los peleadores en grupos (intercalando por club).
+ * 2. Round-robin dentro de cada grupo (todos contra todos).
+ * 3. Llave final con los 2 primeros de cada grupo (top N por grupo, N=2).
+ */
+function generarGruposEliminatoria(peleadores, cantidadGrupos) {
+  const n = peleadores.length;
+  const grupos = Array.from({ length: cantidadGrupos }, (_, i) => []);
+
+  // Repartir con snake-draft por club.
+  const orden = intercalarPorClub(peleadores);
+  // Asignar a grupos en round-robin (no en bloques) para mezclar.
+  let idx = 0;
+  let direccion = 1;
+  let i = 0;
+  while (idx < orden.length) {
+    grupos[i].push(orden[idx]);
+    idx++;
+    // Snake pattern: alternar la dirección en cada grupo.
+    if (idx % cantidadGrupos === 0) {
+      direccion = -direccion;
+    }
+    i += direccion;
+    if (i < 0) i = cantidadGrupos - 1;
+    if (i >= cantidadGrupos) i = 0;
+  }
+
+  // Generar round-robin por grupo.
+  const combates = [];
+  let ordenGlobal = 0;
+  for (let g = 0; g < grupos.length; g++) {
+    const grupo = grupos[g];
+    const nombreGrupo = String.fromCharCode(65 + g); // A, B, C, ...
+    if (grupo.length < 2) continue; // grupo de 1 peleador: pasa directo a la llave.
+    const subLiga = generarLiga(grupo);
+    for (const c of subLiga.combates) {
+      combates.push({
+        ...c,
+        orden: ++ordenGlobal,
+        grupo: nombreGrupo,
+      });
+    }
+    // Si el grupo tiene cantidad impar, queda un peleador que avanzó por bye.
+    // Ese peleador se agrega después como clasificado automático.
+  }
+
+  // Los top N (N=2 por default) de cada grupo pasan a la llave.
+  // Como los grupos no se han jugado todavía, el sistema permite ordenar a los peleadores
+  // alfabéticamente o por orden de inscripción. Vamos a usar el orden del array original.
+  const clasificados = [];
+  for (let g = 0; g < grupos.length; g++) {
+    const grupo = grupos[g];
+    const nombreGrupo = String.fromCharCode(65 + g);
+    // Tomar los primeros N=2 del grupo (en orden de aparición).
+    for (let i = 0; i < Math.min(2, grupo.length); i++) {
+      clasificados.push({ peleador: grupo[i], grupoOrigen: nombreGrupo });
+    }
+  }
+
+  // Armar la llave con los clasificados (eliminatoria directa).
+  if (clasificados.length >= 2) {
+    const { emparejamientos, tieneCrucesIntraClub } = emparejarEliminatoria(clasificados.map((c) => c.peleador));
+    // Determinar la ronda según la cantidad de clasificados.
+    const mapaBracket = {
+      2: { instancia: 'Final', nivel: 0 },
+      4: { instancia: 'Semifinal', nivel: 1 },
+      8: { instancia: 'Cuartos', nivel: 2 },
+      16: { instancia: 'Octavos', nivel: 3 },
+    };
+    const instanciaRonda = mapaBracket[clasificados.length] || { instancia: `Ronda de ${clasificados.length}`, nivel: 5 };
+
+    for (let i = 0; i < emparejamientos.length; i++) {
+      const par = emparejamientos[i];
+      combates.push({
+        orden: ++ordenGlobal,
+        fase: 'eliminatoria',
+        grupo: null,
+        ronda: instanciaRonda.instancia,
+        nivel: instanciaRonda.nivel,
+        idUsuarioA: par.a.idUsuario,
+        idUsuarioB: par.b ? par.b.idUsuario : null,
+        // Marcamos la fase para distinguir "eliminatoria de grupos" (post-grupos).
+        _postGrupos: true,
+      });
+    }
+    return {
+      combates,
+      tieneCrucesIntraClub,
+      cantidadGrupos: grupos.length,
+      grupos: grupos.map((g, i) => ({ nombre: String.fromCharCode(65 + i), cantidad: g.length })),
+    };
+  }
+
+  return {
+    combates,
+    tieneCrucesIntraClub: false,
+    cantidadGrupos: grupos.length,
+    grupos: grupos.map((g, i) => ({ nombre: String.fromCharCode(65 + i), cantidad: g.length })),
+  };
 }
 
 export default tournamentsController;
