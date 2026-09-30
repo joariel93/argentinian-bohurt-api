@@ -613,28 +613,56 @@ const tournamentsController = {
     const { idTorneo } = req.params;
 
     const torneo = await db.get(
-      `SELECT id_torneo, id_tipo_torneo FROM torneo WHERE id_torneo = ?`,
+      `SELECT id_torneo, id_tipo_torneo, id_modalidad FROM torneo WHERE id_torneo = ?`,
       [idTorneo]
     );
     if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
 
-    const rows = await db.all(
-      `SELECT te.id_equipo AS id, e.nombre, e.logo, te.posicion,
-              COALESCE(te.cantidad_combates, 0) AS combates,
-              COALESCE(te.cantidad_victorias, 0) AS victorias,
-              COALESCE(te.cantidad_derrotas, 0) AS derrotas,
-              COALESCE(te.cantidad_rounds_ganados, 0) AS roundsGanados,
-              COALESCE(te.cantidad_rounds_perdidos, 0) AS roundsPerdidos,
-              epg.grupo
-       FROM torneo_equipo te
-       JOIN equipo e ON te.id_equipo = e.id_equipo
-       LEFT JOIN equipos_por_grupo epg ON epg.id_torneo = te.id_torneo AND epg.id_equipo = te.id_equipo
-       WHERE te.id_torneo = ?
-       ORDER BY (te.posicion IS NULL), te.posicion ASC, te.cantidad_victorias DESC, te.cantidad_derrotas ASC, te.cantidad_rounds_ganados DESC`,
-      [idTorneo]
-    );
+    // Para Duelo/Profight devolvemos estadísticas por peleador desde torneo_peleador.
+    // Para Bohurt/Captura devolvemos estadísticas por equipo desde torneo_equipo.
+    // El frontend decide cómo mostrarlo según idModalidad.
+    const isIndividual = [2, 3].includes(torneo.id_modalidad);
 
-    res.json({ idTorneo, idTipoTorneo: torneo.id_tipo_torneo, equipos: rows });
+    let rows;
+    if (isIndividual) {
+      rows = await db.all(
+        `SELECT tp.id_usuario AS id,
+                u.nombre, u.apellido,
+                tp.id_club AS idClub,
+                c.nombre AS clubNombre,
+                COALESCE(tp.cantidad_combates, 0) AS combates,
+                COALESCE(tp.cantidad_victorias, 0) AS victorias,
+                COALESCE(tp.cantidad_derrotas, 0) AS derrotas,
+                COALESCE(tp.cantidad_puntos, 0) AS puntos,
+                COALESCE(tp.cantidad_amarillas, 0) AS amarillas,
+                tp.posicion,
+                tp.descalificado
+         FROM torneo_peleador tp
+         JOIN usuario u ON tp.id_usuario = u.id_usuario
+         LEFT JOIN club c ON tp.id_club = c.id_club
+         WHERE tp.id_torneo = ?
+         ORDER BY tp.cantidad_victorias DESC, tp.cantidad_puntos DESC, u.apellido, u.nombre`,
+        [idTorneo]
+      );
+    } else {
+      rows = await db.all(
+        `SELECT te.id_equipo AS id, e.nombre, e.logo, te.posicion,
+                COALESCE(te.cantidad_combates, 0) AS combates,
+                COALESCE(te.cantidad_victorias, 0) AS victorias,
+                COALESCE(te.cantidad_derrotas, 0) AS derrotas,
+                COALESCE(te.cantidad_rounds_ganados, 0) AS roundsGanados,
+                COALESCE(te.cantidad_rounds_perdidos, 0) AS roundsPerdidos,
+                epg.grupo
+         FROM torneo_equipo te
+         JOIN equipo e ON te.id_equipo = e.id_equipo
+         LEFT JOIN equipos_por_grupo epg ON epg.id_torneo = te.id_torneo AND epg.id_equipo = te.id_equipo
+         WHERE te.id_torneo = ?
+         ORDER BY (te.posicion IS NULL), te.posicion ASC, te.cantidad_victorias DESC, te.cantidad_derrotas ASC, te.cantidad_rounds_ganados DESC`,
+        [idTorneo]
+      );
+    }
+
+    res.json({ idTorneo, idTipoTorneo: torneo.id_tipo_torneo, idModalidad: torneo.id_modalidad, items: rows });
   },
 
   addEquipo: async (req, res) => {
