@@ -4,7 +4,7 @@ import otpService from '../services/otpService.js';
 
 const router = express.Router();
 
-router.get('/utils/generate-otp', async (req, res) => {
+router.get('/v1/utils/generate-otp', async (req, res) => {
   try {
     let otp;
     let attempts = 0;
