@@ -1071,6 +1071,415 @@ const tournamentsController = {
 
     res.json({ message: 'Peleador removido del equipo' });
   },
+
+  // ════════════════════════════════════════════════════════════════════════
+  // FASE B: Combates individuales (Duelo/Profight)
+  // ════════════════════════════════════════════════════════════════════════
+
+  async requireTorneoIndividual(req, res) {
+    const { idTorneo } = req.params;
+    const torneo = await db.get(
+      `SELECT id_torneo AS id, id_modalidad AS idModalidad FROM torneo WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    if (!torneo) {
+      res.status(404).json({ error: 'Torneo no encontrado' });
+      return null;
+    }
+    if (![2, 3].includes(torneo.idModalidad)) {
+      res.status(400).json({ error: 'Este endpoint aplica solo a torneos Duelo/Profight' });
+      return null;
+    }
+    return torneo;
+  },
+
+  getCombatesIndividuales: async (req, res) => {
+    const { idTorneo } = req.params;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    const combates = await db.all(
+      `SELECT ci.id_combate AS id, ci.orden, ci.link, ci.fase, ci.grupo, ci.ronda, ci.nivel,
+              ci.id_usuario_a AS idUsuarioA, ci.id_usuario_b AS idUsuarioB,
+              ci.id_usuario_ganador AS idUsuarioGanador,
+              ci.cantidad_round_ganados_ganador AS roundsGanadosGanador,
+              ci.cantidad_round_ganados_perdedor AS roundsGanadosPerdedor,
+              ua.nombre AS nombreUsuarioA, ua.apellido AS apellidoUsuarioA,
+              ub.nombre AS nombreUsuarioB, ub.apellido AS apellidoUsuarioB,
+              ug.nombre AS nombreUsuarioGanador, ug.apellido AS apellidoUsuarioGanador
+       FROM combate_individual ci
+       JOIN usuario ua ON ci.id_usuario_a = ua.id_usuario
+       LEFT JOIN usuario ub ON ci.id_usuario_b = ub.id_usuario
+       LEFT JOIN usuario ug ON ci.id_usuario_ganador = ug.id_usuario
+       WHERE ci.id_torneo = ?
+       ORDER BY ci.orden ASC`,
+      [idTorneo]
+    );
+
+    const result = await Promise.all(
+      combates.map(async (c) => {
+        const rounds = await db.all(
+          `SELECT round, id_usuario_ganador AS idUsuarioGanador,
+                  puntos_ganador AS puntosGanador, puntos_perdedor AS puntosPerdedor
+           FROM round_combate_individual
+           WHERE id_torneo = ? AND id_combate = ?
+           ORDER BY round ASC`,
+          [idTorneo, c.id]
+        );
+        const finalizado = c.idUsuarioGanador !== null;
+        return {
+          id: c.id,
+          orden: c.orden,
+          link: c.link || null,
+          fase: c.fase || null,
+          grupo: c.grupo || null,
+          ronda: c.ronda || null,
+          nivel: c.nivel ?? null,
+          finalizado,
+          idUsuarioA: c.idUsuarioA,
+          nombreUsuarioA: c.nombreUsuarioA,
+          apellidoUsuarioA: c.apellidoUsuarioA,
+          idUsuarioB: c.idUsuarioB,
+          nombreUsuarioB: c.nombreUsuarioB,
+          apellidoUsuarioB: c.apellidoUsuarioB,
+          idUsuarioGanador: c.idUsuarioGanador,
+          nombreUsuarioGanador: c.nombreUsuarioGanador,
+          apellidoUsuarioGanador: c.apellidoUsuarioGanador,
+          roundsGanadosGanador: c.roundsGanadosGanador || 0,
+          roundsGanadosPerdedor: c.roundsGanadosPerdedor || 0,
+          rounds,
+        };
+      })
+    );
+
+    res.json({ idTorneo, combates: result });
+  },
+
+  createCombatesIndividuales: async (req, res) => {
+    const { idTorneo } = req.params;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    const { combates } = req.body;
+    if (!Array.isArray(combates) || combates.length === 0) {
+      return res.status(400).json({ error: 'El array combates es requerido y no puede estar vacío' });
+    }
+
+    const inscriptos = await db.all(
+      `SELECT id_usuario AS idUsuario FROM torneo_peleador WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    const inscriptosSet = new Set(inscriptos.map((p) => p.idUsuario));
+
+    try {
+      await db.transaction(async (trx) => {
+        for (let i = 0; i < combates.length; i++) {
+          const c = combates[i];
+          if (!c.idUsuarioA) {
+            throw new Error(`Combate ${i}: idUsuarioA es requerido`);
+          }
+          if (c.idUsuarioA === c.idUsuarioB) {
+            throw new Error(`Combate ${i}: idUsuarioA y idUsuarioB no pueden ser iguales`);
+          }
+          if (!inscriptosSet.has(c.idUsuarioA)) {
+            throw new Error(`Combate ${i}: peleador A no inscripto en el torneo`);
+          }
+          if (c.idUsuarioB && !inscriptosSet.has(c.idUsuarioB)) {
+            throw new Error(`Combate ${i}: peleador B no inscripto en el torneo`);
+          }
+
+          await trx.run(
+            `INSERT INTO combate_individual
+               (id_torneo, id_combate, orden, fase, grupo, ronda, nivel,
+                id_usuario_a, id_usuario_b, id_usuario_ganador,
+                cantidad_round_ganados_ganador, cantidad_round_ganados_perdedor, link)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?)`,
+            [
+              idTorneo, c.id || uuidv4(), i + 1,
+              c.fase || null, c.grupo || null, c.ronda || null, c.nivel ?? null,
+              c.idUsuarioA, c.idUsuarioB || null,
+              c.link || null,
+            ]
+          );
+        }
+      });
+      res.status(201).json({ message: 'Combates individuales creados exitosamente' });
+    } catch (err) {
+      console.error('Error en createCombatesIndividuales:', err);
+      res.status(400).json({ error: err.message || 'Error al crear combates individuales' });
+    }
+  },
+
+  eliminarCombatesIndividuales: async (req, res) => {
+    const { idTorneo } = req.params;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    await db.transaction(async (trx) => {
+      await trx.run(`DELETE FROM round_combate_individual WHERE id_torneo = ?`, [idTorneo]);
+      await trx.run(`DELETE FROM combate_individual WHERE id_torneo = ?`, [idTorneo]);
+    });
+    res.json({ message: 'Combates individuales eliminados' });
+  },
+
+  grabarRoundIndividual: async (req, res) => {
+    const { idTorneo, idCombate } = req.params;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    const { round, idUsuarioGanador, puntosGanador, puntosPerdedor } = req.body;
+    if (!round || idUsuarioGanador === undefined || puntosGanador === undefined || puntosPerdedor === undefined) {
+      return res.status(400).json({ error: 'round, idUsuarioGanador, puntosGanador y puntosPerdedor son requeridos' });
+    }
+
+    const combate = await db.get(
+      `SELECT id_usuario_a, id_usuario_b FROM combate_individual WHERE id_torneo = ? AND id_combate = ?`,
+      [idTorneo, idCombate]
+    );
+    if (!combate) return res.status(404).json({ error: 'Combate no encontrado' });
+    if (idUsuarioGanador !== combate.id_usuario_a && idUsuarioGanador !== combate.id_usuario_b) {
+      return res.status(400).json({ error: 'El ganador del round debe ser uno de los participantes' });
+    }
+
+    const maxOrden = await db.get(
+      `SELECT COALESCE(MAX(orden), 0) AS maxOrden FROM round_combate_individual WHERE id_torneo = ? AND id_combate = ?`,
+      [idTorneo, idCombate]
+    );
+
+    await db.run(
+      `INSERT INTO round_combate_individual (id_torneo, id_combate, orden, round, id_usuario_ganador, puntos_ganador, puntos_perdedor)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [idTorneo, idCombate, maxOrden.maxOrden + 1, round, idUsuarioGanador, puntosGanador, puntosPerdedor]
+    );
+
+    res.status(201).json({ message: 'Round registrado exitosamente' });
+  },
+
+  cerrarCombateIndividual: async (req, res) => {
+    const { idTorneo, idCombate } = req.params;
+    const { idUsuarioGanador } = req.body;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    if (!idUsuarioGanador) {
+      return res.status(400).json({ error: 'idUsuarioGanador es requerido' });
+    }
+
+    const combate = await db.get(
+      `SELECT id_usuario_a, id_usuario_b FROM combate_individual WHERE id_torneo = ? AND id_combate = ?`,
+      [idTorneo, idCombate]
+    );
+    if (!combate) return res.status(404).json({ error: 'Combate no encontrado' });
+    if (idUsuarioGanador !== combate.id_usuario_a && idUsuarioGanador !== combate.id_usuario_b) {
+      return res.status(400).json({ error: 'El ganador debe ser uno de los participantes' });
+    }
+
+    const rounds = await db.all(
+      `SELECT id_usuario_ganador FROM round_combate_individual WHERE id_torneo = ? AND id_combate = ?`,
+      [idTorneo, idCombate]
+    );
+    const ganadosGanador = rounds.filter((r) => r.id_usuario_ganador === idUsuarioGanador).length;
+    const ganadosPerdedor = rounds.length - ganadosGanador;
+
+    await db.transaction(async (trx) => {
+      await trx.run(
+        `UPDATE combate_individual
+         SET id_usuario_ganador = ?,
+             cantidad_round_ganados_ganador = ?,
+             cantidad_round_ganados_perdedor = ?
+         WHERE id_torneo = ? AND id_combate = ?`,
+        [idUsuarioGanador, ganadosGanador, ganadosPerdedor, idTorneo, idCombate]
+      );
+
+      await trx.run(
+        `UPDATE torneo_peleador
+         SET cantidad_combates = COALESCE(cantidad_combates, 0) + 1,
+             cantidad_victorias = COALESCE(cantidad_victorias, 0) + 1,
+             cantidad_puntos = COALESCE(cantidad_puntos, 0) + ?,
+             cantidad_derrotas = COALESCE(cantidad_derrotas, 0)
+         WHERE id_torneo = ? AND id_usuario = ?`,
+        [ganadosGanador, idTorneo, idUsuarioGanador]
+      );
+
+      const idPerdedor = idUsuarioGanador === combate.id_usuario_a ? combate.id_usuario_b : combate.id_usuario_a;
+      if (idPerdedor) {
+        await trx.run(
+          `UPDATE torneo_peleador
+           SET cantidad_combates = COALESCE(cantidad_combates, 0) + 1,
+               cantidad_derrotas = COALESCE(cantidad_derrotas, 0) + 1,
+               cantidad_puntos = COALESCE(cantidad_puntos, 0) + ?,
+               cantidad_victorias = COALESCE(cantidad_victorias, 0)
+           WHERE id_torneo = ? AND id_usuario = ?`,
+          [ganadosPerdedor, idTorneo, idPerdedor]
+        );
+      }
+    });
+
+    res.json({ message: 'Combate cerrado exitosamente' });
+  },
+
+  /**
+   * Sorteo individual: arma eliminación directa con la restricción de no cruzar peleadores del mismo club.
+   * Devuelve { combates: [...], tieneCrucesIntraClub: boolean }.
+   */
+  sorteoIndividual: async (req, res) => {
+    const { idTorneo } = req.params;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    const inscriptos = await db.all(
+      `SELECT tp.id_usuario AS idUsuario, tp.id_club AS idClub, u.nombre, u.apellido
+       FROM torneo_peleador tp
+       JOIN usuario u ON tp.id_usuario = u.id_usuario
+       WHERE tp.id_torneo = ?
+       ORDER BY tp.id_club, u.apellido, u.nombre`,
+      [idTorneo]
+    );
+
+    if (inscriptos.length < 2) {
+      return res.status(400).json({ error: 'Se necesitan al menos 2 peleadores inscriptos' });
+    }
+
+    // Agrupar por club
+    const gruposPorClub = new Map();
+    for (const p of inscriptos) {
+      const clave = p.idClub || '__null__';
+      if (!gruposPorClub.has(clave)) gruposPorClub.set(clave, []);
+      gruposPorClub.get(clave).push(p);
+    }
+
+    // Convertir a array y ordenar por tamaño descendente para intercalar mejor
+    const clubes = [...gruposPorClub.values()].sort((a, b) => b.length - a.length);
+
+    // Intercalado: round-robin por clubes para armar el orden final (similar a snake draft).
+    const ordenIntercalado = [];
+    let i = 0;
+    while (ordenIntercalado.length < inscriptos.length) {
+      for (const c of clubes) {
+        if (c[i]) ordenIntercalado.push(c[i]);
+      }
+      i++;
+    }
+
+    // Emparejar: posición i vs posición i+1, recorriendo de a pares.
+    // Si quedan impares, el último es un bye.
+    const emparejamientos = [];
+    let tieneCrucesIntraClub = false;
+    for (let j = 0; j < ordenIntercalado.length; j += 2) {
+      const a = ordenIntercalado[j];
+      const b = ordenIntercalado[j + 1] || null;
+      if (b && a.idClub === b.idClub) tieneCrucesIntraClub = true;
+      emparejamientos.push({ a, b });
+    }
+
+    // Si quedaron cruces intra-club, intentar corregir swapping entre pares contiguos.
+    for (let j = 0; j < emparejamientos.length - 1; j++) {
+      const par1 = emparejamientos[j];
+      const par2 = emparejamientos[j + 1];
+      if (!par1.b || !par2.b) continue;
+      // Si par1 cruza intra-club pero swapping lo resuelve, intercambiar.
+      if (par1.a.idClub === par1.b.idClub && par1.a.idClub !== par2.a.idClub && par1.a.idClub !== par2.b.idClub) {
+        const tmp = par1.b;
+        emparejamientos[j] = { a: par1.a, b: par2.a };
+        emparejamientos[j + 1] = { a: tmp, b: par2.b };
+        tieneCrucesIntraClub = recalcularCruces(emparejamientos);
+      }
+    }
+
+    const combatesData = emparejamientos.map((p, idx) => ({
+      id: `combate-sorteo-${Date.now()}-${idx}`,
+      orden: idx + 1,
+      fase: 'eliminatoria',
+      ronda: 'Octavos',
+      nivel: 3,
+      idUsuarioA: p.a.idUsuario,
+      idUsuarioB: p.b ? p.b.idUsuario : null,
+    }));
+
+    res.json({
+      combates: combatesData,
+      tieneCrucesIntraClub,
+      totalPeleadores: inscriptos.length,
+    });
+  },
+
+  reordenarCombatesIndividuales: async (req, res) => {
+    const { idTorneo } = req.params;
+    const { nuevoOrden } = req.body;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    if (!Array.isArray(nuevoOrden)) {
+      return res.status(400).json({ error: 'nuevoOrden debe ser un array de id_combate' });
+    }
+
+    const existentes = await db.all(
+      `SELECT id_combate FROM combate_individual WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    const existentesSet = new Set(existentes.map((c) => c.id_combate));
+    const nuevoSet = new Set(nuevoOrden);
+
+    if (nuevoOrden.length !== existentes.length || ![...existentesSet].every((id) => nuevoSet.has(id))) {
+      return res.status(400).json({ error: 'nuevoOrden debe contener exactamente los mismos id_combate' });
+    }
+
+    await db.transaction(async (trx) => {
+      for (let i = 0; i < nuevoOrden.length; i++) {
+        await trx.run(
+          `UPDATE combate_individual SET orden = ? WHERE id_torneo = ? AND id_combate = ?`,
+          [i + 1, idTorneo, nuevoOrden[i]]
+        );
+      }
+    });
+
+    res.json({ message: 'Combates reordenados' });
+  },
+
+  editarCombateIndividual: async (req, res) => {
+    const { idTorneo, idCombate } = req.params;
+    const cambios = req.body;
+    const torneo = await tournamentsController.requireTorneoIndividual(req, res);
+    if (!torneo) return;
+
+    const combate = await db.get(
+      `SELECT id_usuario_ganador FROM combate_individual WHERE id_torneo = ? AND id_combate = ?`,
+      [idTorneo, idCombate]
+    );
+    if (!combate) return res.status(404).json({ error: 'Combate no encontrado' });
+    if (combate.id_usuario_ganador !== null) {
+      return res.status(409).json({ error: 'No se puede editar un combate ya cerrado' });
+    }
+
+    const allowedFields = ['id_usuario_a', 'id_usuario_b', 'orden', 'ronda', 'fase', 'grupo', 'nivel', 'link'];
+    const fields = [];
+    const values = [];
+    for (const [key, value] of Object.entries(cambios)) {
+      const dbField = key === 'idUsuarioA' ? 'id_usuario_a'
+                    : key === 'idUsuarioB' ? 'id_usuario_b'
+                    : key;
+      if (!allowedFields.includes(dbField)) continue;
+      fields.push(`${dbField} = ?`);
+      values.push(value);
+    }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+
+    values.push(idTorneo, idCombate);
+    await db.run(
+      `UPDATE combate_individual SET ${fields.join(', ')} WHERE id_torneo = ? AND id_combate = ?`,
+      values
+    );
+    res.json({ message: 'Combate actualizado' });
+  },
 };
+
+// Helper que cuenta cuántos emparejamientos son intra-club (usado por sorteoIndividual).
+function recalcularCruces(emparejamientos) {
+  let count = 0;
+  for (const p of emparejamientos) {
+    if (p.b && p.a.idClub === p.b.idClub) count++;
+  }
+  return count > 0;
+}
 
 export default tournamentsController;

@@ -36,4 +36,14 @@ router.post('/v1/torneo/:idTorneo/peleadores', authMiddleware, roleMiddleware(AD
 router.delete('/v1/torneo/:idTorneo/peleadores/:idUsuario', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removePeleador);
 router.delete('/v1/torneo/:idTorneo/equipo/:idEquipo/peleador/:idUsuario', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removePeleadorDeEquipo);
 
+// Combates individuales (Duelo/Profight) — Fase B
+router.get('/v1/torneo/:idTorneo/combates-individuales', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.getCombatesIndividuales);
+router.post('/v1/torneo/:idTorneo/combates-individuales', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.createCombatesIndividuales);
+router.delete('/v1/torneo/:idTorneo/combates-individuales', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.eliminarCombatesIndividuales);
+router.post('/v1/torneo/:idTorneo/combate-individual/:idCombate/round', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.grabarRoundIndividual);
+router.post('/v1/torneo/:idTorneo/combate-individual/:idCombate/cerrar', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.cerrarCombateIndividual);
+router.post('/v1/torneo/:idTorneo/sorteo-individual', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.sorteoIndividual);
+router.put('/v1/torneo/:idTorneo/combates-individuales/orden', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.reordenarCombatesIndividuales);
+router.put('/v1/torneo/:idTorneo/combate-individual/:idCombate', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.editarCombateIndividual);
+
 export default router;
