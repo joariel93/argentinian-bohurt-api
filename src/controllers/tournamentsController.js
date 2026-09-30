@@ -1281,6 +1281,10 @@ const tournamentsController = {
     const ganadosGanador = rounds.filter((r) => r.id_usuario_ganador === idUsuarioGanador).length;
     const ganadosPerdedor = rounds.length - ganadosGanador;
 
+    // Si es bye (id_usuario_b IS NULL), no se cuentan combates ni victorias para nadie.
+    // El peleador simplemente pasa de ronda sin stats asociadas.
+    const esBye = combate.id_usuario_b === null;
+
     await db.transaction(async (trx) => {
       await trx.run(
         `UPDATE combate_individual
@@ -1291,27 +1295,29 @@ const tournamentsController = {
         [idUsuarioGanador, ganadosGanador, ganadosPerdedor, idTorneo, idCombate]
       );
 
-      await trx.run(
-        `UPDATE torneo_peleador
-         SET cantidad_combates = COALESCE(cantidad_combates, 0) + 1,
-             cantidad_victorias = COALESCE(cantidad_victorias, 0) + 1,
-             cantidad_puntos = COALESCE(cantidad_puntos, 0) + ?,
-             cantidad_derrotas = COALESCE(cantidad_derrotas, 0)
-         WHERE id_torneo = ? AND id_usuario = ?`,
-        [ganadosGanador, idTorneo, idUsuarioGanador]
-      );
-
-      const idPerdedor = idUsuarioGanador === combate.id_usuario_a ? combate.id_usuario_b : combate.id_usuario_a;
-      if (idPerdedor) {
+      if (!esBye) {
         await trx.run(
           `UPDATE torneo_peleador
            SET cantidad_combates = COALESCE(cantidad_combates, 0) + 1,
-               cantidad_derrotas = COALESCE(cantidad_derrotas, 0) + 1,
+               cantidad_victorias = COALESCE(cantidad_victorias, 0) + 1,
                cantidad_puntos = COALESCE(cantidad_puntos, 0) + ?,
-               cantidad_victorias = COALESCE(cantidad_victorias, 0)
+               cantidad_derrotas = COALESCE(cantidad_derrotas, 0)
            WHERE id_torneo = ? AND id_usuario = ?`,
-          [ganadosPerdedor, idTorneo, idPerdedor]
+          [ganadosGanador, idTorneo, idUsuarioGanador]
         );
+
+        const idPerdedor = idUsuarioGanador === combate.id_usuario_a ? combate.id_usuario_b : combate.id_usuario_a;
+        if (idPerdedor) {
+          await trx.run(
+            `UPDATE torneo_peleador
+             SET cantidad_combates = COALESCE(cantidad_combates, 0) + 1,
+                 cantidad_derrotas = COALESCE(cantidad_derrotas, 0) + 1,
+                 cantidad_puntos = COALESCE(cantidad_puntos, 0) + ?,
+                 cantidad_victorias = COALESCE(cantidad_victorias, 0)
+             WHERE id_torneo = ? AND id_usuario = ?`,
+            [ganadosPerdedor, idTorneo, idPerdedor]
+          );
+        }
       }
     });
 

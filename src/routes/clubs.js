@@ -10,6 +10,7 @@ const ADMIN_ROLES = [1];
 router.get('/v1/clubs', clubsController.getAll);
 router.get('/v1/club/:idClub', clubsController.getById);
 router.get('/v1/clubStats/:idClub', clubsController.getStats);
+router.get('/v1/club/:idClub/duelistas', clubsController.getDuelistas);
 router.get('/v1/get-clubs-simplify', clubsController.getSimplify);
 
 router.post('/v1/clubs', authMiddleware, roleMiddleware(ADMIN_ROLES), clubsController.create);

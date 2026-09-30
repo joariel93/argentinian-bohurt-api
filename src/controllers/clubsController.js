@@ -258,6 +258,140 @@ const clubsController = {
 
     res.json({ message: 'Club eliminado exitosamente' });
   },
+
+  getDuelistas: async (req, res) => {
+    const { idClub } = req.params;
+    const club = await db.get(`SELECT id_club, nombre FROM club WHERE id_club = ?`, [idClub]);
+    if (!club) return res.status(404).json({ error: 'Club no encontrado' });
+
+    // Estadísticas agregadas por peleador (solo cuenta los combates donde realmente participó,
+    // es decir donde tuvo id_usuario_b !== null, o sea: no se cuentan los byes).
+    const peleadores = await db.all(
+      `SELECT tp.id_usuario AS idUsuario,
+              u.nombre, u.apellido, u.dni,
+              SUM(tp.cantidad_combates) AS combates,
+              SUM(tp.cantidad_victorias) AS victorias,
+              SUM(tp.cantidad_derrotas) AS derrotas,
+              SUM(tp.cantidad_puntos) AS puntos,
+              SUM(tp.cantidad_amarillas) AS amarillas
+       FROM torneo_peleador tp
+       JOIN usuario u ON tp.id_usuario = u.id_usuario
+       JOIN torneo t ON tp.id_torneo = t.id_torneo
+       WHERE tp.id_club = ?
+         AND t.id_modalidad IN (2, 3)
+       GROUP BY tp.id_usuario, u.nombre, u.apellido
+       ORDER BY u.apellido, u.nombre`,
+      [idClub]
+    );
+
+    // Torneos en los que participó el peleador (sin contar byes).
+    const torneosPorPeleador = await db.all(
+      `SELECT tp.id_usuario AS idUsuario,
+              tp.id_torneo AS idTorneo,
+              t.nombre AS torneoNombre,
+              m.nombre AS modalidad,
+              m.id_modalidad AS idModalidad,
+              c.nombre AS categoria,
+              c.id_categoria AS idCategoria,
+              g.nombre AS genero,
+              g.id_genero AS idGenero,
+              e.id_evento AS idEvento,
+              e.nombre AS eventoNombre,
+              e.fecha_evento AS fechaEvento,
+              tp.posicion,
+              tp.cantidad_combates AS combates,
+              tp.cantidad_victorias AS victorias,
+              tp.cantidad_derrotas AS derrotas,
+              tp.cantidad_puntos AS puntos,
+              tp.cantidad_amarillas AS amarillas,
+              tp.descalificado
+       FROM torneo_peleador tp
+       JOIN torneo t ON tp.id_torneo = t.id_torneo
+       JOIN modalidad m ON t.id_modalidad = m.id_modalidad
+       JOIN categoria c ON t.id_categoria = c.id_categoria AND t.id_modalidad = c.id_modalidad
+       JOIN genero g ON t.id_genero = g.id_genero
+       JOIN evento e ON t.id_evento = e.id_evento
+       WHERE tp.id_club = ?
+         AND t.id_modalidad IN (2, 3)
+       ORDER BY e.fecha_evento DESC, t.nombre`,
+      [idClub]
+    );
+
+    // Combates donde el peleador participó realmente (con id_usuario_b no null) — útil para excluir byes.
+    const combatesRealesPorPeleador = await db.all(
+      `SELECT ci.id_usuario_a AS idUsuario,
+              t.id_torneo AS idTorneo,
+              1 AS combate_real
+       FROM combate_individual ci
+       JOIN torneo t ON ci.id_torneo = t.id_torneo
+       WHERE ci.id_usuario_b IS NOT NULL AND t.id_modalidad IN (2, 3) AND t.id_evento IN (
+         SELECT id_evento FROM torneo WHERE id_torneo IN (SELECT id_torneo FROM torneo_peleador WHERE id_club = ?)
+       )
+       UNION ALL
+       SELECT ci.id_usuario_b AS idUsuario,
+              t.id_torneo AS idTorneo,
+              1 AS combate_real
+       FROM combate_individual ci
+       JOIN torneo t ON ci.id_torneo = t.id_torneo
+       WHERE ci.id_usuario_a IS NOT NULL AND t.id_modalidad IN (2, 3) AND t.id_evento IN (
+         SELECT id_evento FROM torneo WHERE id_torneo IN (SELECT id_torneo FROM torneo_peleador WHERE id_club = ?)
+       )`,
+      [idClub, idClub]
+    );
+
+    // También combates del peleador en el lado "b" (porque arriba pueden tener id_usuario_a con bye).
+    // Lo importante: solo contar si realmente tuvo un combate con otro peleador.
+
+    // Construir respuesta
+    const combatesMap = {};
+    for (const c of combatesRealesPorPeleador) {
+      if (!combatesMap[c.idUsuario]) combatesMap[c.idUsuario] = {};
+      if (!combatesMap[c.idUsuario][c.idTorneo]) combatesMap[c.idUsuario][c.idTorneo] = 0;
+      combatesMap[c.idUsuario][c.idTorneo] += 1;
+    }
+
+    const torneosMap = {};
+    for (const t of torneosPorPeleador) {
+      if (!torneosMap[t.idUsuario]) torneosMap[t.idUsuario] = [];
+      const combatesReales = combatesMap[t.idUsuario]?.[t.idTorneo] || 0;
+      torneosMap[t.idUsuario].push({
+        idTorneo: t.idTorneo,
+        idEvento: t.idEvento,
+        torneoNombre: t.torneoNombre,
+        modalidad: t.modalidad,
+        idModalidad: t.idModalidad,
+        categoria: t.categoria,
+        idCategoria: t.idCategoria,
+        genero: t.genero,
+        idGenero: t.idGenero,
+        eventoNombre: t.eventoNombre,
+        fechaEvento: t.fechaEvento,
+        posicion: t.posicion,
+        combates: combatesReales,
+        combatesTotales: t.combates || 0,
+        victorias: t.victorias || 0,
+        derrotas: t.derrotas || 0,
+        puntos: t.puntos || 0,
+        amarillas: t.amarillas || 0,
+        descalificado: !!t.descalificado,
+      });
+    }
+
+    const result = peleadores.map((p) => ({
+      idUsuario: p.idUsuario,
+      nombre: p.nombre,
+      apellido: p.apellido,
+      dni: null, // No exponemos DNI.
+      combates: p.combates || 0,
+      victorias: p.victorias || 0,
+      derrotas: p.derrotas || 0,
+      puntos: p.puntos || 0,
+      amarillas: p.amarillas || 0,
+      torneos: torneosMap[p.idUsuario] || [],
+    }));
+
+    res.json({ idClub, clubNombre: club.nombre, peleadores: result });
+  },
 };
 
 export default clubsController;
