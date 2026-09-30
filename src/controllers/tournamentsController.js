@@ -21,10 +21,14 @@ const TORNEO_JOIN_EVENTO_SELECT = `
          e.imagen,
          e.link_transmision AS link_transmision,
          e.id_reglamento,
-         e.id_organizador
+         e.id_organizador,
   FROM torneo t
   JOIN evento e ON t.id_evento = e.id_evento
 `;
+
+// Cuando se concatena TORNEO_JOIN_EVENTO_SELECT hay que terminar con los JOINs extra.
+// Para evitar errores de sintaxis, terminamos el helper SIN coma final.
+
 
 
 function mapIconClass(icono) {
@@ -72,8 +76,8 @@ async function getRedesSocialesTorneoAdmin(idTorneo) {
 const tournamentsController = {
   getAll: async (req, res) => {
     const rows = await db.all(
-      `${TORNEO_JOIN_EVENTO_SELECT},
-              m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria
+      `${TORNEO_JOIN_EVENTO_SELECT}
+       m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria
        JOIN modalidad m ON t.id_modalidad = m.id_modalidad
        JOIN genero g ON t.id_genero = g.id_genero
        JOIN categoria c ON t.id_categoria = c.id_categoria AND t.id_modalidad = c.id_modalidad
@@ -99,7 +103,7 @@ const tournamentsController = {
   getInfo: async (req, res) => {
     const { tournamentId } = req.params;
     const t = await db.get(
-      `${TORNEO_JOIN_EVENTO_SELECT},
+      `${TORNEO_JOIN_EVENTO_SELECT}
               m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
               tt.nombre AS tipoTorneo
        JOIN modalidad m ON t.id_modalidad = m.id_modalidad
@@ -217,7 +221,7 @@ const tournamentsController = {
     const { id } = req.params;
 
     const t = await db.get(
-      `${TORNEO_JOIN_EVENTO_SELECT}`,
+      `${TORNEO_JOIN_EVENTO_SELECT} WHERE t.id_torneo = ?`,
       [id]
     );
     if (!t) return res.status(404).json({ error: 'Torneo no encontrado' });
@@ -797,7 +801,7 @@ const tournamentsController = {
       const { id } = req.params;
 
       const torneo = await db.get(
-        `${TORNEO_JOIN_EVENTO_SELECT}`,
+        `${TORNEO_JOIN_EVENTO_SELECT} WHERE t.id_torneo = ?`,
         [id]
       );
       if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
