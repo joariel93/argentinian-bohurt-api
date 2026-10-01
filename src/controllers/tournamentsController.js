@@ -21,13 +21,17 @@ const TORNEO_JOIN_EVENTO_SELECT = `
          e.imagen,
          e.link_transmision AS link_transmision,
          e.id_reglamento,
-         e.id_organizador,
+         e.id_organizador
   FROM torneo t
   JOIN evento e ON t.id_evento = e.id_evento
 `;
 
-// Cuando se concatena TORNEO_JOIN_EVENTO_SELECT hay que terminar con los JOINs extra.
-// Para evitar errores de sintaxis, terminamos el helper SIN coma final.
+// Patrón de uso:
+//   const base = \`(${TORNEO_JOIN_EVENTO_SELECT})\`;  // subquery
+//   db.all(\`SELECT base.*, m.nombre AS modalidad, ... FROM \${base} AS base
+//          JOIN modalidad m ON base.id_modalidad = m.id_modalidad
+//          JOIN ... \`);
+// De este modo el helper no mezcla sintaxis con los JOINs/SELECTs adicionales.
 
 
 
@@ -76,12 +80,12 @@ async function getRedesSocialesTorneoAdmin(idTorneo) {
 const tournamentsController = {
   getAll: async (req, res) => {
     const rows = await db.all(
-      `${TORNEO_JOIN_EVENTO_SELECT}
-       m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria
-       JOIN modalidad m ON t.id_modalidad = m.id_modalidad
-       JOIN genero g ON t.id_genero = g.id_genero
-       JOIN categoria c ON t.id_categoria = c.id_categoria AND t.id_modalidad = c.id_modalidad
-       ORDER BY e.fecha_evento ASC`
+      `SELECT base.*, m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria
+       FROM (${TORNEO_JOIN_EVENTO_SELECT}) AS base
+       JOIN modalidad m ON base.id_modalidad = m.id_modalidad
+       JOIN genero g ON base.id_genero = g.id_genero
+       JOIN categoria c ON base.id_categoria = c.id_categoria AND base.id_modalidad = c.id_modalidad
+       ORDER BY base.fecha_torneo ASC`
     );
     res.json(rows.map((r) => ({
       id: r.id_torneo,
@@ -103,14 +107,14 @@ const tournamentsController = {
   getInfo: async (req, res) => {
     const { tournamentId } = req.params;
     const t = await db.get(
-      `${TORNEO_JOIN_EVENTO_SELECT}
-              m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
+      `SELECT base.*, m.nombre AS modalidad, g.nombre AS sexo, c.nombre AS categoria,
               tt.nombre AS tipoTorneo
-       JOIN modalidad m ON t.id_modalidad = m.id_modalidad
-       JOIN genero g ON t.id_genero = g.id_genero
-       JOIN categoria c ON t.id_categoria = c.id_categoria AND t.id_modalidad = c.id_modalidad
-       LEFT JOIN tipo_torneo tt ON t.id_tipo_torneo = tt.id_tipo_torneo
-       WHERE t.id_torneo = ?`,
+       FROM (${TORNEO_JOIN_EVENTO_SELECT}) AS base
+       JOIN modalidad m ON base.id_modalidad = m.id_modalidad
+       JOIN genero g ON base.id_genero = g.id_genero
+       JOIN categoria c ON base.id_categoria = c.id_categoria AND base.id_modalidad = c.id_modalidad
+       LEFT JOIN tipo_torneo tt ON base.id_tipo_torneo = tt.id_tipo_torneo
+       WHERE base.id_torneo = ?`,
       [tournamentId]
     );
     if (!t) return res.status(404).json({ error: 'Torneo no encontrado' });
@@ -221,10 +225,11 @@ const tournamentsController = {
     const { id } = req.params;
 
     const t = await db.get(
-      `${TORNEO_JOIN_EVENTO_SELECT} WHERE t.id_torneo = ?`,
+      `SELECT * FROM (${TORNEO_JOIN_EVENTO_SELECT}) AS base WHERE base.id_torneo = ?`,
       [id]
     );
     if (!t) return res.status(404).json({ error: 'Torneo no encontrado' });
+    // (Sin alias adicionales: el helper ya devuelve todos los campos del evento.)
 
     const [clubs, redesSociales, peleadoresPorEquipoRows, peleadoresIndividualesRows] = await Promise.all([
       db.all(
@@ -481,7 +486,8 @@ const tournamentsController = {
 
     const torneo = await db.get(
       `SELECT t.id_torneo, e.nombre, e.fecha_evento AS fechaTorneo, e.localizacion, e.imagen
-       FROM torneo t JOIN evento e ON t.id_evento = e.id_evento
+       FROM torneo t
+       JOIN evento e ON t.id_evento = e.id_evento
        WHERE t.id_torneo = ?`,
       [idTorneo]
     );
@@ -801,7 +807,7 @@ const tournamentsController = {
       const { id } = req.params;
 
       const torneo = await db.get(
-        `${TORNEO_JOIN_EVENTO_SELECT} WHERE t.id_torneo = ?`,
+        `SELECT * FROM (${TORNEO_JOIN_EVENTO_SELECT}) AS base WHERE base.id_torneo = ?`,
         [id]
       );
       if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });

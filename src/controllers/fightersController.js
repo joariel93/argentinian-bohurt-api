@@ -38,7 +38,7 @@ const fightersController = {
         const exact = await db.get(
           `SELECT u.id_usuario AS id, u.nombre, u.apellido, u.username
            FROM usuario u
-           WHERE u.dni_hash = ? AND u.id_tipo_usuario = ?`,
+           WHERE u.username = ? AND u.id_tipo_usuario = ?`,
           [hash, TIPO_LUCHADOR]
         );
         if (exact) return res.json([mapFighter(exact)]);
@@ -49,7 +49,7 @@ const fightersController = {
           const users = await db.all(
             `SELECT u.id_usuario AS id, u.nombre, u.apellido, u.username
              FROM usuario u
-             WHERE u.dni_last4 = ? AND u.id_tipo_usuario = ? AND u.dni_hash != ?
+             WHERE u.username = ? AND u.id_tipo_usuario = ? AND u.username != ?
              ORDER BY u.apellido, u.nombre
              LIMIT 50`,
             [last4, TIPO_LUCHADOR, hash]

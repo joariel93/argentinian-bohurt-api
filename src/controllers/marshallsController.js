@@ -322,8 +322,11 @@ const marshallsController = {
       }
 
       const torneos = await db.all(
-        `SELECT id_torneo, nombre, localizacion, fecha_torneo, id_modalidad, id_categoria, id_genero, id_tipo_torneo, password
-         FROM torneo WHERE password IS NOT NULL`
+        `SELECT t.id_torneo, t.id_modalidad, t.id_categoria, t.id_genero, t.id_tipo_torneo, t.password,
+                e.nombre, e.localizacion, e.fecha_evento AS fecha_torneo
+         FROM torneo t
+         JOIN evento e ON t.id_evento = e.id_evento
+         WHERE t.password IS NOT NULL`
       );
 
       let t = null;
@@ -375,7 +378,8 @@ const marshallsController = {
       const { idTorneo } = req.params;
 
       const torneo = await db.get(
-        `SELECT id_torneo, nombre, id_modalidad, id_categoria, id_genero FROM torneo WHERE id_torneo = ?`,
+        `SELECT t.id_torneo, t.id_modalidad, t.id_categoria, t.id_genero
+         FROM torneo t WHERE t.id_torneo = ?`,
         [idTorneo]
       );
       if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
@@ -1136,7 +1140,7 @@ const marshallsController = {
     try {
       const { idTorneo } = req.params;
 
-      const torneo = await db.get(`SELECT id_torneo, nombre FROM torneo WHERE id_torneo = ?`, [idTorneo]);
+      const torneo = await db.get(`SELECT id_torneo FROM torneo WHERE id_torneo = ?`, [idTorneo]);
       if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
 
       const equipos = await db.all(
@@ -1171,7 +1175,7 @@ const marshallsController = {
         [idTorneo]
       );
 
-      res.json({ idTorneo, nombre: torneo.nombre, equipos, peleadores });
+      res.json({ idTorneo, equipos, peleadores });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Error interno del servidor' });

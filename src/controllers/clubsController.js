@@ -145,7 +145,7 @@ const clubsController = {
     const { idClub } = req.params;
     const rows = await db.all(
       `SELECT te.id_torneo,
-              t.nombre || ' - ' || t.fecha_torneo || ' - ' || m.nombre || ' ' || g.nombre AS torneo,
+              e.nombre || ' - ' || e.fecha_evento || ' - ' || m.nombre || ' ' || g.nombre AS torneo,
               m.nombre AS modalidad,
               g.nombre AS genero,
               SUM(te.cantidad_combates) AS combates,
@@ -159,9 +159,10 @@ const clubsController = {
        JOIN torneo t ON te.id_torneo = t.id_torneo
        JOIN modalidad m ON t.id_modalidad = m.id_modalidad
        JOIN genero g ON t.id_genero = g.id_genero
+       JOIN evento e ON t.id_evento = e.id_evento
        WHERE ce.id_club = ?
-       GROUP BY te.id_torneo, t.nombre, t.fecha_torneo, m.nombre, g.nombre
-       ORDER BY t.fecha_torneo DESC`,
+       GROUP BY te.id_torneo, e.nombre, e.fecha_evento, m.nombre, g.nombre
+       ORDER BY e.fecha_evento DESC`,
       [idClub]
     );
     res.json(rows);
@@ -268,7 +269,7 @@ const clubsController = {
     // es decir donde tuvo id_usuario_b !== null, o sea: no se cuentan los byes).
     const peleadores = await db.all(
       `SELECT tp.id_usuario AS idUsuario,
-              u.nombre, u.apellido, u.dni,
+              u.nombre, u.apellido,
               SUM(tp.cantidad_combates) AS combates,
               SUM(tp.cantidad_victorias) AS victorias,
               SUM(tp.cantidad_derrotas) AS derrotas,
@@ -313,7 +314,7 @@ const clubsController = {
        JOIN evento e ON t.id_evento = e.id_evento
        WHERE tp.id_club = ?
          AND t.id_modalidad IN (2, 3)
-       ORDER BY e.fecha_evento DESC, t.nombre`,
+       ORDER BY e.fecha_evento DESC, e.nombre`,
       [idClub]
     );
 
