@@ -355,7 +355,6 @@ const eventsController = {
     await db.transaction(async (trx) => {
       const torneos = await trx.all(`SELECT id_torneo FROM torneo WHERE id_evento = ?`, [id]);
       for (const t of torneos) {
-        await trx.run(`DELETE FROM torneo_redes_sociales WHERE id_torneo = ?`, [t.id_torneo]);
         await trx.run(`DELETE FROM torneo_equipo_peleador WHERE id_torneo = ?`, [t.id_torneo]);
         await trx.run(`DELETE FROM torneo_luchador WHERE id_torneo = ?`, [t.id_torneo]);
         await trx.run(`DELETE FROM torneo_equipo WHERE id_torneo = ?`, [t.id_torneo]);
