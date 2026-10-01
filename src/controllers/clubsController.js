@@ -154,8 +154,8 @@ const clubsController = {
               SUM(te.cantidad_rounds_ganados) AS roundsGanados,
               SUM(te.cantidad_rounds_perdidos) AS roundsPerdidos
        FROM torneo_equipo te
-       JOIN equipo e ON te.id_equipo = e.id_equipo
-       JOIN club_equipos ce ON e.id_equipo = ce.id_equipo
+       JOIN equipo eq ON te.id_equipo = eq.id_equipo
+       JOIN club_equipos ce ON eq.id_equipo = ce.id_equipo
        JOIN torneo t ON te.id_torneo = t.id_torneo
        JOIN modalidad m ON t.id_modalidad = m.id_modalidad
        JOIN genero g ON t.id_genero = g.id_genero
