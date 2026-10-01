@@ -289,7 +289,7 @@ const clubsController = {
     const torneosPorPeleador = await db.all(
       `SELECT tp.id_usuario AS idUsuario,
               tp.id_torneo AS idTorneo,
-              t.nombre AS torneoNombre,
+              e.nombre AS torneoNombre,
               m.nombre AS modalidad,
               m.id_modalidad AS idModalidad,
               c.nombre AS categoria,
