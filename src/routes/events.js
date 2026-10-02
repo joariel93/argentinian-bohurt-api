@@ -15,5 +15,6 @@ router.post('/v1/events', authMiddleware, roleMiddleware(ADMIN_ROLES), eventsCon
 router.put('/v1/events/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), eventsController.update);
 router.delete('/v1/events/:id', authMiddleware, roleMiddleware(ADMIN_ROLES), eventsController.delete);
 router.post('/v1/events/:id/validate-otp', eventsController.validateOtp);
+router.get('/v1/events/:id/tournaments', eventsController.getTorneosByEvento);
 
 export default router;
