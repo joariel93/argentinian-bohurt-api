@@ -171,9 +171,9 @@ const tournamentsController = {
       const coloresIds = [...new Set(rows.flatMap((r) => [r.id_color1, r.id_color2, r.id_color3]))];
       const colores = coloresIds.length
         ? await db.all(
-            `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
-            coloresIds
-          )
+          `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
+          coloresIds
+        )
         : [];
       const coloresMap = new Map(colores.map((c) => [c.id, c]));
 
@@ -294,9 +294,9 @@ const tournamentsController = {
     const coloresIds = [...new Set(peleadoresIndividualesRows.flatMap((r) => [r.id_color1, r.id_color2, r.id_color3]))];
     const colores = coloresIds.length
       ? await db.all(
-          `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
-          coloresIds
-        )
+        `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
+        coloresIds
+      )
       : [];
     const coloresMap = new Map(colores.map((c) => [c.id, c]));
 
@@ -692,7 +692,7 @@ const tournamentsController = {
 
   addCombates: async (req, res) => {
     const { idTorneo } = req.params;
-    const { equipos, combates, peleadores } = req.body;
+    const { equipos, combates, peleadores, esModificacion } = req.body;
 
     if (!idTorneo || !combates) return res.status(400).json({ error: 'Faltan parametros del endpoint' });
 
@@ -1001,9 +1001,9 @@ const tournamentsController = {
     const coloresIds = [...new Set(rows.flatMap((r) => [r.id_color1, r.id_color2, r.id_color3]))];
     const colores = coloresIds.length
       ? await db.all(
-          `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
-          coloresIds
-        )
+        `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
+        coloresIds
+      )
       : [];
     const coloresMap = new Map(colores.map((c) => [c.id, c]));
 
@@ -1509,8 +1509,8 @@ const tournamentsController = {
     const values = [];
     for (const [key, value] of Object.entries(cambios)) {
       const dbField = key === 'idUsuarioA' ? 'id_usuario_a'
-                    : key === 'idUsuarioB' ? 'id_usuario_b'
-                    : key;
+        : key === 'idUsuarioB' ? 'id_usuario_b'
+          : key;
       if (!allowedFields.includes(dbField)) continue;
       fields.push(`${dbField} = ?`);
       values.push(value);
@@ -1584,8 +1584,8 @@ function reducirCruces(emparejamientos) {
       const par2 = emparejamientos[j + 1];
       if (!par1.b || !par2.b) continue;
       if (par1.a.idClub === par1.b.idClub &&
-          par1.a.idClub !== par2.a.idClub &&
-          par1.a.idClub !== par2.b.idClub) {
+        par1.a.idClub !== par2.a.idClub &&
+        par1.a.idClub !== par2.b.idClub) {
         const tmp = par1.b;
         emparejamientos[j] = { a: par1.a, b: par2.a };
         emparejamientos[j + 1] = { a: tmp, b: par2.b };
