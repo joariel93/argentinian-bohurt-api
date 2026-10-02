@@ -93,6 +93,12 @@ const eventsController = {
     })));
   },
 
+  getTournamentsByEvent: async (req, res) => {
+    const { id } = req.params;
+    const torneos = await getTorneosByEvento(id);
+    res.json(torneos);
+  },
+
   getById: async (req, res) => {
     const { id } = req.params;
     const evento = await db.get(
@@ -428,9 +434,9 @@ const eventsController = {
           const coloresIds = [...new Set(combates.flatMap((c) => [c.idColor1A, c.idColor2A, c.idColor3A, c.idColor1B, c.idColor2B, c.idColor3B]))];
           const colores = coloresIds.length
             ? await db.all(
-                `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
-                coloresIds
-              )
+              `SELECT id_color AS id, nombre, hex FROM colores WHERE id_color IN (${coloresIds.map(() => '?').join(',')})`,
+              coloresIds
+            )
             : [];
           const coloresMap = new Map(colores.map((c) => [c.id, c]));
 
