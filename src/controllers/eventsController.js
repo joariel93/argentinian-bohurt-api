@@ -78,7 +78,6 @@ const eventsController = {
       `SELECT e.id_evento AS id, e.nombre, e.localizacion,
               e.fecha_evento AS fechaEvento, e.fecha_cierre_inscripcion AS fechaCierreInscripcion,
               e.imagen, e.link_transmision AS linkTransmision,
-              e.estado,
               (SELECT COUNT(*) FROM torneo t WHERE t.id_evento = e.id_evento) AS cantidadTorneos,
               (SELECT GROUP_CONCAT(DISTINCT m.nombre)
                FROM torneo t
