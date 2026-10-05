@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import db from '../database/connection.js';
 import { v4 as uuidv4 } from 'uuid';
-import { encryptDni, dniHash, dniLast4 } from '../utils/dniCrypto.js';
+import { encryptDni, dniHash, dniLast4, isDniLike } from '../utils/dniCrypto.js';
 
 
 const SALT_ROUNDS = 10;
@@ -63,9 +63,9 @@ const usersController = {
 
   create: async (req, res) => {
     try {
-      const { username, password, nombre, apellido, email, telefono, idTipoUsuario } = req.body;
+      const { username: rawUsername, password, nombre, apellido, email, telefono, idTipoUsuario } = req.body;
 
-      if (!username || !password || !nombre || !apellido || !idTipoUsuario) {
+      if (!rawUsername || !password || !nombre || !apellido || !idTipoUsuario) {
         return res.status(400).json({
           error: 'username, password, nombre, apellido e idTipoUsuario son requeridos',
         });
@@ -74,6 +74,10 @@ const usersController = {
       if (email && !validarEmail(email)) {
         return res.status(400).json({ error: 'El email no tiene un formato válido' });
       }
+
+      // Encriptar el username si parece un DNI. Para usuarios con email (admin, organizador, etc.)
+      // no se encripta porque no es un DNI.
+      const username = isDniLike(rawUsername) ? encryptDni(rawUsername) : rawUsername;
 
       const existingUsername = await db.get(
         `SELECT id_usuario FROM usuario WHERE username = ? AND id_tipo_usuario = ?`,

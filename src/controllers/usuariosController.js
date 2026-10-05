@@ -207,11 +207,14 @@ const usuariosController = {
 
   crear: async (req, res) => {
     try {
-      const { nombre, apellido, username } = req.body;
+      const { nombre, apellido, username: rawUsername } = req.body;
 
-      if (!nombre || !apellido || !username) {
+      if (!nombre || !apellido || !rawUsername) {
         return res.status(400).json({ error: 'nombre, apellido y username son requeridos' });
       }
+
+      // El username esperado es un DNI de luchador, lo encriptamos.
+      const username = encryptDni(rawUsername);
 
       const existing = await db.get(
         `SELECT id_usuario FROM usuario WHERE username = ? AND id_tipo_usuario = ?`,

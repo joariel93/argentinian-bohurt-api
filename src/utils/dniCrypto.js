@@ -8,6 +8,16 @@ export function normalizeDni(dni) {
   return String(dni).replace(/\D/g, '');
 }
 
+/**
+ * Devuelve true si el string parece un DNI (6-10 dígitos sin puntos ni guiones).
+ * Lo usamos para detectar si `username` debe encriptarse como DNI antes del INSERT.
+ */
+export function isDniLike(value) {
+  if (!value) return false;
+  const clean = normalizeDni(value);
+  return /^\d{6,10}$/.test(clean);
+}
+
 export function encryptDni(dni) {
   const clean = normalizeDni(dni);
   if (!clean) return '';
