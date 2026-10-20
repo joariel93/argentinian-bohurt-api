@@ -1030,6 +1030,74 @@ const tournamentsController = {
 
   addPeleador: async (req, res) => {
     const { idTorneo } = req.params;
+    const { peleadores } = req.body;
+
+    if (!peleadores) {
+      return res.status(400).json({ error: 'peleadores es requerido' });
+    }
+
+    const torneo = await db.get(
+      `SELECT id_torneo, id_modalidad AS idModalidad FROM torneo WHERE id_torneo = ?`,
+      [idTorneo]
+    );
+    if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' });
+    if (![1].includes(torneo.idModalidad)) {
+      return res.status(400).json({ error: 'Este endpoint aplica solo a torneos grupales' });
+    }
+
+    for (let i = 0; i < peleadores.length; i++) {
+      const peleador = peleadores[i];
+      const usuario = await db.get(
+        `SELECT id_usuario, id_tipo_usuario FROM usuario WHERE id_usuario = ?`,
+        [peleador.idUsuario]
+      );
+      if (!usuario) return res.status(404).json({ error: 'Peleador no encontrado' });
+      if (usuario.id_tipo_usuario !== 4) {
+        return res.status(400).json({ error: 'El usuario debe ser de tipo Luchador' });
+
+        const equipo = await db.get(
+          `SELECT id_equipo FROM equipo WHERE id_equipo = ?`,
+          [peleador.idEquipo]
+        );
+        if (!equipo) return res.status(404).json({ error: 'Equipo no encontrado' });
+
+
+      }
+
+    }
+
+    // Si no se especifica club, asignar Mercenarios (si existe).
+    let finalClub = idClub;
+    if (!finalClub) {
+      const clubRow = await db.get(`SELECT id_club FROM club WHERE nombre = 'Mercenarios' LIMIT 1`);
+      finalClub = clubRow?.id_club;
+    }
+    if (!finalClub) {
+      return res.status(400).json({
+        error: 'Debe especificar un club o existir el club "Mercenarios"',
+      });
+    }
+
+    try {
+      await db.run(
+        `INSERT INTO torneo_peleador (id_torneo, id_usuario, id_club, posicion, cantidad_combates,
+                                     cantidad_victorias, cantidad_derrotas, cantidad_puntos,
+                                     cantidad_amarillas, descalificado)
+         VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, 0)`,
+        [idTorneo, idUsuario, finalClub]
+      );
+    } catch (err) {
+      if (String(err.message).includes('UNIQUE')) {
+        return res.status(409).json({ error: 'El peleador ya está inscripto en este torneo' });
+      }
+      throw err;
+    }
+
+    res.status(201).json({ message: 'Peleador inscripto exitosamente', idClub: finalClub });
+  },
+
+  addPeleadorIndividual: async (req, res) => {
+    const { idTorneo } = req.params;
     const { idUsuario, idClub } = req.body;
 
     if (!idUsuario) {
