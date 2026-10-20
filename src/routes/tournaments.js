@@ -33,6 +33,7 @@ router.put('/v1/torneo/:idTorneo/combate/:idCombate/round/:round', authMiddlewar
 
 router.get('/v1/torneo/:idTorneo/peleadores', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.getPeleadores);
 router.post('/v1/torneo/:idTorneo/peleadores', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addPeleador);
+router.post('/v1/torneo/:idTorneo/peleadores-individuales', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addPeleadorIndividual);
 router.delete('/v1/torneo/:idTorneo/peleadores/:idUsuario', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removePeleador);
 router.delete('/v1/torneo/:idTorneo/equipo/:idEquipo/peleador/:idUsuario', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.removePeleadorDeEquipo);
 
