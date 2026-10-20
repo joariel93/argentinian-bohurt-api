@@ -1054,46 +1054,31 @@ const tournamentsController = {
       if (!usuario) return res.status(404).json({ error: 'Peleador no encontrado' });
       if (usuario.id_tipo_usuario !== 4) {
         return res.status(400).json({ error: 'El usuario debe ser de tipo Luchador' });
-
-        const equipo = await db.get(
-          `SELECT id_equipo FROM equipo WHERE id_equipo = ?`,
-          [peleador.idEquipo]
-        );
-        if (!equipo) return res.status(404).json({ error: 'Equipo no encontrado' });
-
-
       }
-
-    }
-
-    // Si no se especifica club, asignar Mercenarios (si existe).
-    let finalClub = idClub;
-    if (!finalClub) {
-      const clubRow = await db.get(`SELECT id_club FROM club WHERE nombre = 'Mercenarios' LIMIT 1`);
-      finalClub = clubRow?.id_club;
-    }
-    if (!finalClub) {
-      return res.status(400).json({
-        error: 'Debe especificar un club o existir el club "Mercenarios"',
-      });
-    }
-
-    try {
-      await db.run(
-        `INSERT INTO torneo_peleador (id_torneo, id_usuario, id_club, posicion, cantidad_combates,
-                                     cantidad_victorias, cantidad_derrotas, cantidad_puntos,
-                                     cantidad_amarillas, descalificado)
-         VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, 0)`,
-        [idTorneo, idUsuario, finalClub]
+      const equipo = await db.get(
+        `SELECT id_equipo FROM equipo WHERE id_equipo = ?`,
+        [peleador.idEquipo]
       );
-    } catch (err) {
-      if (String(err.message).includes('UNIQUE')) {
-        return res.status(409).json({ error: 'El peleador ya está inscripto en este torneo' });
-      }
-      throw err;
-    }
+      if (!equipo) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-    res.status(201).json({ message: 'Peleador inscripto exitosamente', idClub: finalClub });
+      try {
+        await db.run(
+          `INSERT OR IGNORE INTO equipo_peleador (id_equipo, id_usuario)
+            VALUES (?, ?)`,
+          [peleador.idEquipo, peleador.idUsuario]
+        )
+        await db.run(
+          `INSERT OR IGNORE INTO torneo_equipo_peleador (id_torneo, id_equipo, id_usuario, numero_peleador, cantidad_amarillas, descalificado)
+            VALUES (?, ?, ?, ?, 0, 0)`,
+          [idTorneo, peleador.idEquipo, peleador.idUsuario, peleador.numeroPeleador]
+        )
+
+      } catch (error) {
+        console.error('Error al agregar peleador:', error);
+        return res.status(500).json({ error: 'Error interno del servidor, ' });
+      }
+    }
+    return res.status(201).json({ message: 'Peleadores inscriptos exitosamente' });
   },
 
   addPeleadorIndividual: async (req, res) => {
