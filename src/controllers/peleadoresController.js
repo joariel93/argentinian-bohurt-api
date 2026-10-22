@@ -22,7 +22,7 @@ const peleadoresController = {
       );
 
       const torneos = await db.all(
-        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo, t.imagen,
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo, ev.imagen,
                 e.id_equipo AS equipoId, e.nombre AS equipoNombre, e.logo AS equipoLogo,
                 tep.numero_peleador AS numeroPeleador
          FROM torneo_equipo_peleador tep
