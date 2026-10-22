@@ -55,7 +55,7 @@ const peleadoresController = {
          JOIN torneo t ON tl.id_torneo = t.id_torneo
          JOIN evento e on t.id_evento = e.id_evento
          WHERE tl.id_usuario = ?
-         ORDER BY t.fecha_torneo DESC`,
+         ORDER BY e.fecha_evento DESC`,
         [id]
       );
 
