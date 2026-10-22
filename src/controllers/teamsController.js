@@ -198,7 +198,7 @@ const teamsController = {
         );
 
         const torneosRows = await db.all(
-          `SELECT te.id_torneo AS id, t.nombre AS torneo,
+          `SELECT te.id_torneo AS id, ev.nombre AS torneo,
                   te.cantidad_combates AS combates,
                   te.cantidad_victorias AS victorias,
                   te.cantidad_derrotas AS derrotas,
@@ -206,8 +206,9 @@ const teamsController = {
                   te.cantidad_rounds_perdidos AS roundsPerdidos
            FROM torneo_equipo te
            JOIN torneo t ON te.id_torneo = t.id_torneo
+           JOIN evento ev ON t.id_evento = ev.id_evento
            WHERE te.id_equipo = ?
-           ORDER BY t.fecha_torneo DESC`,
+           ORDER BY ev.fecha_evento DESC`,
           [eq.id_equipo]
         );
 

@@ -22,14 +22,15 @@ const peleadoresController = {
       );
 
       const torneos = await db.all(
-        `SELECT t.id_torneo AS id, t.nombre, t.fecha_torneo AS fechaTorneo, t.imagen,
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo, t.imagen,
                 e.id_equipo AS equipoId, e.nombre AS equipoNombre, e.logo AS equipoLogo,
                 tep.numero_peleador AS numeroPeleador
          FROM torneo_equipo_peleador tep
          JOIN torneo t ON tep.id_torneo = t.id_torneo
          JOIN equipo e ON tep.id_equipo = e.id_equipo
+         JOIN evento ev on t.id_evento = ev.id_evento
          WHERE tep.id_usuario = ?
-         ORDER BY t.fecha_torneo DESC`,
+         ORDER BY ev.fecha_evento DESC`,
         [id]
       );
 
@@ -46,12 +47,13 @@ const peleadoresController = {
       );
 
       const estadisticas = await db.all(
-        `SELECT tl.id_torneo AS torneoId, t.nombre AS torneoNombre,
+        `SELECT tl.id_torneo AS torneoId, e.nombre AS torneoNombre,
                 tl.cantidad_combates AS combates, tl.cantidad_victorias AS victorias,
                 tl.cantidad_derrotas AS derrotas, tl.cantidad_rounds_ganados AS roundsGanados,
                 tl.cantidad_rounds_perdidos AS roundsPerdidos
          FROM torneo_luchador tl
          JOIN torneo t ON tl.id_torneo = t.id_torneo
+         JOIN evento e on t.id_evento = e.id_evento
          WHERE tl.id_usuario = ?
          ORDER BY t.fecha_torneo DESC`,
         [id]
