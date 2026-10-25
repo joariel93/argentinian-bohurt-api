@@ -21,20 +21,21 @@ const peleadoresController = {
         [id]
       );
 
-      const torneos = await db.all(
+      const torneosBohurt = await db.all(
         `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo, ev.imagen,
+                t.categoria,
                 e.id_equipo AS equipoId, e.nombre AS equipoNombre, e.logo AS equipoLogo,
                 tep.numero_peleador AS numeroPeleador
          FROM torneo_equipo_peleador tep
          JOIN torneo t ON tep.id_torneo = t.id_torneo
          JOIN equipo e ON tep.id_equipo = e.id_equipo
          JOIN evento ev on t.id_evento = ev.id_evento
-         WHERE tep.id_usuario = ?
+         WHERE tep.id_usuario = ? AND t.modalidad = 1
          ORDER BY ev.fecha_evento DESC`,
         [id]
       );
 
-      const equipos = await db.all(
+      const equiposBohurt = await db.all(
         `SELECT DISTINCT e.id_equipo AS id, e.nombre, e.logo,
                 cl.id_club AS clubId, cl.nombre AS clubNombre
          FROM equipo_peleador ep
@@ -46,7 +47,7 @@ const peleadoresController = {
         [id]
       );
 
-      const estadisticas = await db.all(
+      const estadisticasBohurt = await db.all(
         `SELECT tl.id_torneo AS torneoId, e.nombre AS torneoNombre,
                 tl.cantidad_combates AS combates, tl.cantidad_victorias AS victorias,
                 tl.cantidad_derrotas AS derrotas, tl.cantidad_rounds_ganados AS roundsGanados,
@@ -59,12 +60,38 @@ const peleadoresController = {
         [id]
       );
 
+      const torneosDuelo = await db.all(
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo, ev.imagen,
+                tp.posicion AS posicion, t.categoria, tp.cantidad_combates AS cantidadCombates, 
+                tp.cantidad_victorias AS victorias, tp.cantidad_derrotas AS derrotas, tp.cantidad_puntos AS puntos
+         FROM torneo_peleador tp
+         JOIN torneo t ON tp.id_torneo = t.id_torneo
+         JOIN evento ev on t.id_evento = ev.id_evento
+         WHERE tp.id_usuario = ? AND t.modalidad = 2 
+         ORDER BY ev.fecha_evento DESC`,
+        [id]
+      );
+
+      const torneosProfight = await db.all(
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaCombate, t.categoria,
+          tp.cantidad_victorias AS victoria, tp.cantidad_derrotas AS derrota, tp.cantidad_puntos AS puntos,
+          adversario.apellido AS apellidoRetador, adversario.nombre AS nombreRetador
+        FROM torneo_peleador tp
+          INNER JOIN torneo t ON tp.id_torneo = t.id_torneo
+          INNER JOIN combate_individual ci ON tp.id_torneo = ci.id_torneo AND (tp.id_usuario = ci.id_usuario_a OR tp.id_usuario = ci.id_usuario_b)
+          INNER JOIN evento ev ON t.id_evento = ev.id_evento
+          INNER JOIN usuario adversario ON adversario.id_usuario = CASE WHEN tp.id_usuario = ci.id_usuario_a THEN ci.id_usuario_b ELSE ci.id_usuario_a END
+        WHERE tp.id_usuario = ? AND t.modalidad = 3
+        ORDER BY ev.fecha_evento DESC;`,
+        [id]
+      )
+
       res.json({
         id: user.id_usuario,
         nombre: user.nombre,
         apellido: user.apellido,
         luchador: luchador || null,
-        torneos: torneos.map((t) => ({
+        torneosBohurt: torneosBohurt.map((t) => ({
           id: t.id,
           nombre: t.nombre,
           fechaTorneo: t.fechaTorneo,
@@ -72,8 +99,31 @@ const peleadoresController = {
           equipo: { id: t.equipoId, nombre: t.equipoNombre, logo: t.equipoLogo },
           numeroPeleador: t.numeroPeleador,
         })),
-        equipos,
-        estadisticas,
+        equipos: equiposBohurt,
+        estadisticasBohurt: estadisticasBohurt,
+        torneosDuelo: torneosDuelo.map((t) => ({
+          id: t.id,
+          nombre: t.nombre,
+          fechaTorneo: t.fechaTorneo,
+          imagen: t.imagen,
+          categoria: t.categoria,
+          posicion: t.posicion,
+          cantidadCombates: t.cantidadCombates,
+          victorias: t.victorias,
+          derrotas: t.derrotas,
+          puntos: t.puntos,
+        })),
+        estadisticasProfight: torneosProfight.map((t) => ({
+          id: t.id,
+          nombre: t.nombre,
+          fechaTorneo: t.fechaTorneo,
+          categoria: t.categoria,
+          victorias: t.victoria,
+          derrotas: t.derrota,
+          puntos: t.puntos,
+          nombreRetador: t.nombreRetador,
+          apellidoRetador: t.apellidoRetador,
+        }))
       });
     } catch (error) {
       console.error('Error en getById peleador:', error);

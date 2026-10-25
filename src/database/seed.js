@@ -44,7 +44,7 @@ const seed = async () => {
 
   // ---- CATEGORIA (PK compuesta: id_categoria + id_modalidad) ----
   const categorias = [
-    [1, 1, '5 vs 5', 5], [2, 1, '3 vs 3', 3], [3, 1, '12 vs 12', 1], [4, 1, '20 vs 20', 1],
+    [1, 1, '5 vs 5', 5], [2, 1, '3 vs 3', 3], [3, 1, '12 vs 12', 12], [4, 1, '20 vs 20', 20],
     [1, 2, 'Heraldico', 1], [2, 2, 'Broquel', 1], [3, 2, 'Espada larga', 1], [4, 2, 'Astas', 1],
     [1, 3, '80kg', 1], [2, 3, '90kg', 1], [3, 3, '100kg', 1], [4, 3, '+100kg', 1], [5, 3, 'Libre', 1],
     [1, 4, '5 vs 5', 5], [2, 4, '3 vs 3', 3], [3, 4, '12 vs 12', 1], [4, 4, '20 vs 20', 1],
