@@ -22,8 +22,8 @@ const peleadoresController = {
       );
 
       const torneosBohurt = await db.all(
-        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo, ev.imagen,
-                t.categoria,
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo,
+                t.id_categoria AS categoria,
                 e.id_equipo AS equipoId, e.nombre AS equipoNombre, e.logo AS equipoLogo,
                 tep.numero_peleador AS numeroPeleador
          FROM torneo_equipo_peleador tep
@@ -95,7 +95,6 @@ const peleadoresController = {
           id: t.id,
           nombre: t.nombre,
           fechaTorneo: t.fechaTorneo,
-          imagen: t.imagen,
           equipo: { id: t.equipoId, nombre: t.equipoNombre, logo: t.equipoLogo },
           numeroPeleador: t.numeroPeleador,
         })),
