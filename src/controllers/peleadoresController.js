@@ -61,8 +61,8 @@ const peleadoresController = {
       );
 
       const torneosDuelo = await db.all(
-        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo, ev.imagen,
-                tp.posicion AS posicion, t.categoria, tp.cantidad_combates AS cantidadCombates, 
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo,
+                tp.posicion AS posicion, t.id_categoria AS categoria, tp.cantidad_combates AS cantidadCombates, 
                 tp.cantidad_victorias AS victorias, tp.cantidad_derrotas AS derrotas, tp.cantidad_puntos AS puntos
          FROM torneo_peleador tp
          JOIN torneo t ON tp.id_torneo = t.id_torneo
@@ -73,7 +73,7 @@ const peleadoresController = {
       );
 
       const torneosProfight = await db.all(
-        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaCombate, t.categoria,
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaCombate, t.id_categoria,
           tp.cantidad_victorias AS victoria, tp.cantidad_derrotas AS derrota, tp.cantidad_puntos AS puntos,
           adversario.apellido AS apellidoRetador, adversario.nombre AS nombreRetador
         FROM torneo_peleador tp
@@ -105,7 +105,6 @@ const peleadoresController = {
           id: t.id,
           nombre: t.nombre,
           fechaTorneo: t.fechaTorneo,
-          imagen: t.imagen,
           categoria: t.categoria,
           posicion: t.posicion,
           cantidadCombates: t.cantidadCombates,
