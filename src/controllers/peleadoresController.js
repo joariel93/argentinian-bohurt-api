@@ -30,7 +30,7 @@ const peleadoresController = {
          JOIN torneo t ON tep.id_torneo = t.id_torneo
          JOIN equipo e ON tep.id_equipo = e.id_equipo
          JOIN evento ev on t.id_evento = ev.id_evento
-         WHERE tep.id_usuario = ? AND t.modalidad = 1
+         WHERE tep.id_usuario = ? AND t.id_modalidad = 1
          ORDER BY ev.fecha_evento DESC`,
         [id]
       );
@@ -67,7 +67,7 @@ const peleadoresController = {
          FROM torneo_peleador tp
          JOIN torneo t ON tp.id_torneo = t.id_torneo
          JOIN evento ev on t.id_evento = ev.id_evento
-         WHERE tp.id_usuario = ? AND t.modalidad = 2 
+         WHERE tp.id_usuario = ? AND t.id_modalidad = 2 
          ORDER BY ev.fecha_evento DESC`,
         [id]
       );
@@ -81,7 +81,7 @@ const peleadoresController = {
           INNER JOIN combate_individual ci ON tp.id_torneo = ci.id_torneo AND (tp.id_usuario = ci.id_usuario_a OR tp.id_usuario = ci.id_usuario_b)
           INNER JOIN evento ev ON t.id_evento = ev.id_evento
           INNER JOIN usuario adversario ON adversario.id_usuario = CASE WHEN tp.id_usuario = ci.id_usuario_a THEN ci.id_usuario_b ELSE ci.id_usuario_a END
-        WHERE tp.id_usuario = ? AND t.modalidad = 3
+        WHERE tp.id_usuario = ? AND t.id_modalidad = 3
         ORDER BY ev.fecha_evento DESC;`,
         [id]
       )
