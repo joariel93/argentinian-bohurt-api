@@ -74,7 +74,7 @@ const peleadoresController = {
       );
 
       const torneosProfight = await db.all(
-        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaCombate, t.id_categoria, c.nombre AS categoriaNombre
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaCombate, t.id_categoria, c.nombre AS categoriaNombre,
           tp.cantidad_victorias AS victoria, tp.cantidad_derrotas AS derrota, tp.cantidad_puntos AS puntos,
           adversario.apellido AS apellidoRetador, adversario.nombre AS nombreRetador
         FROM torneo_peleador tp
