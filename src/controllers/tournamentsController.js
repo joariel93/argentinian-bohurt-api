@@ -1083,7 +1083,7 @@ const tournamentsController = {
 
   addPeleadorIndividual: async (req, res) => {
     const { idTorneo } = req.params;
-    const { idUsuario, idClub } = req.body;
+    const { idUsuario, idClub, posicion } = req.body;
 
     if (!idUsuario) {
       return res.status(400).json({ error: 'idUsuario es requerido' });
@@ -1124,8 +1124,8 @@ const tournamentsController = {
         `INSERT INTO torneo_peleador (id_torneo, id_usuario, id_club, posicion, cantidad_combates,
                                      cantidad_victorias, cantidad_derrotas, cantidad_puntos,
                                      cantidad_amarillas, descalificado)
-         VALUES (?, ?, ?, NULL, 0, 0, 0, 0, 0, 0)`,
-        [idTorneo, idUsuario, finalClub]
+         VALUES (?, ?, ?, ?, 0, 0, 0, 0, 0, 0)`,
+        [idTorneo, idUsuario, finalClub, posicion]
       );
     } catch (err) {
       if (String(err.message).includes('UNIQUE')) {

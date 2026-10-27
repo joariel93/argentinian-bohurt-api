@@ -62,24 +62,26 @@ const peleadoresController = {
 
       const torneosDuelo = await db.all(
         `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaTorneo,
-                tp.posicion AS posicion, t.id_categoria AS categoria, tp.cantidad_combates AS cantidadCombates, 
+                tp.posicion AS posicion, t.id_categoria AS categoria, c.nombre AS categoriaNombre, tp.cantidad_combates AS cantidadCombates, 
                 tp.cantidad_victorias AS victorias, tp.cantidad_derrotas AS derrotas, tp.cantidad_puntos AS puntos
          FROM torneo_peleador tp
-         JOIN torneo t ON tp.id_torneo = t.id_torneo
-         JOIN evento ev on t.id_evento = ev.id_evento
+         INNER JOIN torneo t ON tp.id_torneo = t.id_torneo
+         INNER JOIN evento ev on t.id_evento = ev.id_evento
+         INNER JOIN categoria c on t.id_modalidad = c.id_modalidad AND t.id_categoria = c.id_categoria
          WHERE tp.id_usuario = ? AND t.id_modalidad = 2 
          ORDER BY ev.fecha_evento DESC`,
         [id]
       );
 
       const torneosProfight = await db.all(
-        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaCombate, t.id_categoria,
+        `SELECT t.id_torneo AS id, ev.nombre, ev.fecha_evento AS fechaCombate, t.id_categoria, c.nombre AS categoriaNombre
           tp.cantidad_victorias AS victoria, tp.cantidad_derrotas AS derrota, tp.cantidad_puntos AS puntos,
           adversario.apellido AS apellidoRetador, adversario.nombre AS nombreRetador
         FROM torneo_peleador tp
           INNER JOIN torneo t ON tp.id_torneo = t.id_torneo
           INNER JOIN combate_individual ci ON tp.id_torneo = ci.id_torneo AND (tp.id_usuario = ci.id_usuario_a OR tp.id_usuario = ci.id_usuario_b)
           INNER JOIN evento ev ON t.id_evento = ev.id_evento
+          INNER JOIN categoria c on t.id_modalidad = c.id_modalidad AND t.id_categoria = c.id_categoria
           INNER JOIN usuario adversario ON adversario.id_usuario = CASE WHEN tp.id_usuario = ci.id_usuario_a THEN ci.id_usuario_b ELSE ci.id_usuario_a END
         WHERE tp.id_usuario = ? AND t.id_modalidad = 3
         ORDER BY ev.fecha_evento DESC;`,
@@ -105,6 +107,7 @@ const peleadoresController = {
           nombre: t.nombre,
           fechaTorneo: t.fechaTorneo,
           categoria: t.categoria,
+          nombreCategoria: t.categoriaNombre,
           posicion: t.posicion,
           cantidadCombates: t.cantidadCombates,
           victorias: t.victorias,
@@ -116,6 +119,7 @@ const peleadoresController = {
           nombre: t.nombre,
           fechaTorneo: t.fechaTorneo,
           categoria: t.categoria,
+          nombreCategoria: t.categoriaNombre,
           victorias: t.victoria,
           derrotas: t.derrota,
           puntos: t.puntos,
