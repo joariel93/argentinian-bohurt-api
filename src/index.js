@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import lookupsRoutes from './routes/lookups.js';
 import clubsRoutes from './routes/clubs.js';
 import teamsRoutes from './routes/teams.js';
-import tournamentsRoutes from './routes/tournaments.js';
+import tournamentsRoutes, { combatRegistrationRoutes } from './routes/tournaments.js';
 import organizersRoutes from './routes/organizers.js';
 import newsRoutes from './routes/news.js';
 import marshallsRoutes from './routes/marshalls.js';
@@ -61,8 +61,6 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 
 const authLimiter = rateLimit({
@@ -94,6 +92,10 @@ app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/refresh', refreshLimiter);
 app.use('/api', apiLimiter);
 
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use('/api', combatRegistrationRoutes);
+app.use(express.json({ limit: '10kb' }));
+
 app.use('/api', lookupsRoutes);
 app.use('/api', clubsRoutes);
 app.use('/api', teamsRoutes);
@@ -119,6 +121,9 @@ app.use((req, res) => {
 
 app.use((err, req, res, _next) => {
   console.error(err);
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'El tamaño de la solicitud supera el límite permitido.' });
+  }
   const status = err.status || 500;
   const message = isProduction
     ? 'Error interno del servidor'

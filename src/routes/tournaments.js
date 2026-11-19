@@ -7,6 +7,15 @@ const router = express.Router();
 
 const ADMIN_ROLES = [1];
 
+export const combatRegistrationRoutes = express.Router();
+combatRegistrationRoutes.post(
+  '/v1/torneo/:idTorneo/combates',
+  authMiddleware,
+  roleMiddleware(ADMIN_ROLES),
+  express.json({ limit: '64kb' }),
+  tournamentsController.addCombates
+);
+
 router.get('/v1/tournaments', tournamentsController.getAll);
 router.get('/v1/combat-types/:idModalidad', tournamentsController.getCombatTypes);
 router.get('/v1/tournaments/:tournamentId/info', tournamentsController.getInfo);
@@ -21,7 +30,6 @@ router.post('/v1/organizers/:organizerId/tournaments', authMiddleware, roleMiddl
   tournamentsController.submit(req, res);
 });
 router.post('/v1/torneo/:idTorneo/equipos', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addEquipo);
-router.post('/v1/torneo/:idTorneo/combates', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.addCombates);
 router.put('/v1/torneo/:idTorneo/combate/:idCombate/link', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.updateCombateLink);
 router.get('/v1/tournaments/:id/admin', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.getAdmin);
 router.get('/v1/tournaments/:id/full-edit', authMiddleware, roleMiddleware(ADMIN_ROLES), tournamentsController.getFullEdit);
